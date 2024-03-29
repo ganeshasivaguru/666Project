@@ -74,6 +74,14 @@ args.l2_assoc=2
 args.l3_assoc=2
 
 #
+#args.l1d_size="128kB"
+#args.l1i_size="128kB"
+#args.l2_size="256kB"
+#args.l3_size="1MB"
+#args.l1d_assoc=2
+#args.l1i_assoc=2
+#args.l2_assoc=2
+#args.l3_assoc=2
 # Create the ruby random tester
 #
 
