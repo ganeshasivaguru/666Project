@@ -150,6 +150,9 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         l2_cache = L2Cache(size = options.l2_size,
                            assoc = options.l2_assoc,
                            start_index_bit = block_size_bits + l2_bits)
+        LastTouchPred LTP = LastTouchPred();
+        l2_cache.LTP = LTP;
+        l1_cache.LTP = LTP;
 
         l2_cntrl = L2Cache_Controller(version = i,
                                       L2cache = l2_cache,

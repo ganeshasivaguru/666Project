@@ -61,6 +61,7 @@ python_class_map = {
                     "PerfectCacheMemory": "RubyPerfectCacheMemory",
                     "MemoryControl": "MemoryControl",
                     "MessageBuffer": "MessageBuffer",
+                    "LastTouchPred": "LastTouchPred",
                     "DMASequencer": "DMASequencer",
                     "RubyPrefetcher":"RubyPrefetcher",
                     "Cycles":"Cycles",

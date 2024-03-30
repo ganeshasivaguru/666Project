@@ -42,6 +42,7 @@ machine(MachineType:L1Cache, "L1 cache protocol")
  : Sequencer * sequencer;
    CacheMemory * L1Icache;
    CacheMemory * L1Dcache;
+   LastTouchPred * LTP;
    Cycles request_latency := 1;
    Cycles response_latency := 1;
    Cycles use_timeout_latency := 50;

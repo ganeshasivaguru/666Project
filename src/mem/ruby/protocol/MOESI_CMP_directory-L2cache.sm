@@ -40,6 +40,7 @@
 
 machine(MachineType:L2Cache, "Token protocol")
 : CacheMemory * L2cache;
+  //LastTouchPred * LTP;
   Cycles response_latency := 1;
   Cycles request_latency := 1;
 
@@ -61,6 +62,8 @@ machine(MachineType:L2Cache, "Token protocol")
         vnet_type="response";  // a local L1 || mod-directory -> this L2 bank
 
   MessageBuffer * triggerQueue;
+  LastTouchPred * LTP;
+  //MessageBuffer * triggerQueue2;
 {
   // STATES
   state_declaration(State, desc="L2 Cache states", default="L2Cache_State_I") {

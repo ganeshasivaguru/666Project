@@ -119,7 +119,7 @@ MakeInclude('structures/TimerTable.hh')
 MakeInclude('structures/WireBuffer.hh')
 MakeInclude('system/DMASequencer.hh')
 MakeInclude('system/Sequencer.hh')
-
+MakeInclude('system/LastTouchPred.hh')
 # External types : Group "mem/ruby/protocol" : include "header.hh" to the
 # bottom of this MakeIncludes if it is referenced as
 # <# include "mem/ruby/protocol/header.hh"> in any file

@@ -56,7 +56,7 @@ structure(MessageBuffer, buffer="yes", inport="yes", outport="yes",
   bool areNSlotsAvailable(int n, Tick curTime);
   int getSize(Tick curTime);
 }
-
+structure (LastTouchPred, external = "yes") {}
 external_type(Scalar, primitive="yes");
 
 structure(OutPort, external = "yes", primitive="yes") {
