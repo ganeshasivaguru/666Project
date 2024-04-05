@@ -56,7 +56,24 @@ structure(MessageBuffer, buffer="yes", inport="yes", outport="yes",
   bool areNSlotsAvailable(int n, Tick curTime);
   int getSize(Tick curTime);
 }
-structure (LastTouchPred, external = "yes") {}
+structure (LastTouchPred, external = "yes") {
+        void update_table_size(int num_blocks);
+        int get_sig_table_size();
+        int get_LTP_sig_table_size();
+
+        //sig table add and get
+        void add_new_sig_table(Addr block_tag, PacketPtr pkt);
+        int check_self_invalidation(Addr block_tag);
+        //int get_sig_table_value(int block_index);
+
+        //LTP sig table add and get
+        void add_new_sig_LTP_table(Addr block_tag);
+        //int get_sig_LTP_table_value(int block_index);
+
+        int check_for_LTP_match(int value, Addr block_tag);
+
+}
+
 external_type(Scalar, primitive="yes");
 
 structure(OutPort, external = "yes", primitive="yes") {

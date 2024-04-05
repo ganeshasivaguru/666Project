@@ -1,18 +1,5 @@
 /*
- * Copyright (c) 2021 ARM Limited
- * All rights reserved.
- *
- * The license below extends only to copyright in the software and shall
- * not be construed as granting a license to any other intellectual
- * property including but not limited to intellectual property relating
- * to a hardware implementation of the functionality of the software
- * licensed hereunder.  You may use the software subject to the license
- * terms below provided that you ensure that this notice is replicated
- * unmodified and in its entirety in all distributions of the software,
- * modified or unmodified, in source code or in binary form.
- *
- * Copyright (c) 2009-2012 Mark D. Hill and David A. Wood
- * Copyright (c) 2010-2012 Advanced Micro Devices, Inc.
+ * Copyright (c) 2017 Jason Lowe-Power
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,616 +26,642 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/**
+ * This file contains the directory controller of a simple example MSI protocol
+ *
+ * In Ruby the directory controller both contains the directory coherence state
+ * but also functions as the memory controller in many ways. There are states
+ * in the directory that are both memory-centric and cache-centric. Be careful!
+ *
+ * The protocol in this file is based off of the MSI protocol found in
+ * A Primer on Memory Consistency and Cache Coherence
+ *      Daniel J. Sorin, Mark D. Hill, and David A. Wood
+ *      Synthesis Lectures on Computer Architecture 2011 6:3, 141-149
+ *
+ * Table 8.2 contains the transitions and actions found in this file and
+ * section 8.2.4 explains the protocol in detail.
+ *
+ * See Learning gem5 Part 3: Ruby for more details.
+ */
+
 machine(MachineType:Directory, "Directory protocol")
-    : DirectoryMemory * directory;
-      Cycles directory_latency := 12;
-      Cycles to_memory_controller_latency := 1;
+    :
+      // This "DirectoryMemory" is a little weird. It is initially allocated
+      // so that it *can* cover all of memory (i.e., there are pointers for
+      // every 64-byte block in memory). However, the entries are lazily
+      // created in getDirEntry()
+      DirectoryMemory * directory;
+      // You can put any parameters you want here. They will be exported as
+      // normal SimObject parameters (like in the SimObject description file)
+      // and you can set these parameters at runtime via the python config
+      // file. If there is no default here (like directory), it is mandatory
+      // to set the parameter in the python config. Otherwise, it uses the
+      // default value set here.
+      Cycles toMemLatency := 1;
 
-      MessageBuffer * forwardFromDir, network="To", virtual_network="3",
-            vnet_type="forward";
-      MessageBuffer * responseFromDir, network="To", virtual_network="4",
-            vnet_type="response";
-      MessageBuffer * dmaResponseFromDir, network="To", virtual_network="1",
-            vnet_type="response";
+    // Forwarding requests from the directory *to* the caches.
+    MessageBuffer *forwardToCache, network="To", virtual_network="1",
+          vnet_type="forward";
+    // Response from the directory *to* the cache.
+    MessageBuffer *responseToCache, network="To", virtual_network="2",
+          vnet_type="response";
 
-      MessageBuffer * requestToDir, network="From", virtual_network="2",
-            vnet_type="request";
-      MessageBuffer * dmaRequestToDir, network="From", virtual_network="0",
-            vnet_type="request";
+    // Requests *from* the cache to the directory
+    MessageBuffer *requestFromCache, network="From", virtual_network="0",
+          vnet_type="request";
 
-      MessageBuffer * requestToMemory;
-      MessageBuffer * responseFromMemory;
+    // Responses *from* the cache to the directory
+    MessageBuffer *responseFromCache, network="From", virtual_network="2",
+          vnet_type="response";
+
+    // Special buffer for memory requests. Kind of like the mandatory queue
+    MessageBuffer *requestToMemory;
+
+    // Special buffer for memory responses. Kind of like the mandatory queue
+    MessageBuffer *responseFromMemory;
+
 {
-  // STATES
-  state_declaration(State, desc="Directory states", default="Directory_State_I") {
-    // Base states
-    I, AccessPermission:Read_Write, desc="Invalid";
-    M, AccessPermission:Invalid, desc="Modified";
+    // For many things in SLICC you can specify a default. However, this
+    // default must use the C++ name (mangled SLICC name). For the state below
+    // you have to use the controller name and the name we use for states.
+    state_declaration(State, desc="Directory states",
+                      default="Directory_State_I") {
+        // Stable states.
+        // NOTE: Thise are "cache-centric" states like in Sorin et al.
+        // However, The access permissions are memory-centric.
+        I, AccessPermission:Read_Write,  desc="Invalid in the caches.";
+        S, AccessPermission:Read_Only,   desc="At least one cache has the blk";
+        M, AccessPermission:Invalid,     desc="A cache has the block in M";
 
-    M_DRD, AccessPermission:Busy, desc="Blocked on an invalidation for a DMA read";
-    M_DWR, AccessPermission:Busy, desc="Blocked on an invalidation for a DMA write";
+        // Transient states
+        S_D, AccessPermission:Busy,      desc="Moving to S, but need data";
 
-    M_DWRI, AccessPermission:Read_Write, desc="Intermediate state M_DWR-->I";
-    M_DRDI, AccessPermission:Read_Write, desc="Intermediate state M_DRD-->I";
+        // Waiting for data from memory
+        S_m, AccessPermission:Read_Write, desc="In S waiting for mem";
+        M_m, AccessPermission:Read_Write, desc="Moving to M waiting for mem";
 
-    IM, AccessPermission:Read_Write, desc="Intermediate state I-->M";
-    MI, AccessPermission:Read_Write, desc="Intermediate state M-->I";
-    ID, AccessPermission:Read_Write, desc="Intermediate state for DMA_READ when in I";
-    ID_W, AccessPermission:Read_Write, desc="Intermediate state for DMA_WRITE when in I";
-
-    // Note: busy states when we wait for memory in transitions from or to 'I'
-    // have AccessPermission:Read_Write so this controller can get the latest
-    // data from memory during a functionalRead
-  }
-
-  // Events
-  enumeration(Event, desc="Directory events") {
-    // processor requests
-    GETX, desc="A GETX arrives";
-    GETS, desc="A GETS arrives";
-    PUTX, desc="A PUTX arrives";
-    PUTX_NotOwner, desc="A PUTX arrives";
-
-    // DMA requests
-    DMA_READ, desc="A DMA Read memory request";
-    DMA_WRITE, desc="A DMA Write memory request";
-
-    // Memory Controller
-    Memory_Data, desc="Fetched data from memory arrives";
-    Memory_Ack, desc="Writeback Ack from memory arrives";
-  }
-
-  // TYPES
-
-  // DirectoryEntry
-  structure(Entry, desc="...", interface="AbstractCacheEntry", main="false") {
-    State DirectoryState,          desc="Directory state";
-    NetDest Sharers,                   desc="Sharers for this block";
-    NetDest Owner,                     desc="Owner of this block";
-  }
-
-  // TBE entries for DMA requests
-  structure(TBE, desc="TBE entries for outstanding DMA requests") {
-    Addr PhysicalAddress, desc="physical address";
-    State TBEState,        desc="Transient State";
-    DataBlock DataBlk,     desc="Data to be written (DMA write only)";
-    int Len,               desc="...";
-    MachineID DmaRequestor, desc="DMA requestor";
-  }
-
-  structure(TBETable, external="yes") {
-    TBE lookup(Addr);
-    void allocate(Addr);
-    void deallocate(Addr);
-    bool isPresent(Addr);
-  }
-
-  // ** OBJECTS **
-  TBETable TBEs, template="<Directory_TBE>", constructor="m_number_of_TBEs";
-
-  Tick clockEdge();
-  Cycles ticksToCycles(Tick t);
-  Tick cyclesToTicks(Cycles c);
-  void set_tbe(TBE b);
-  void unset_tbe();
-
-  Entry getDirectoryEntry(Addr addr), return_by_pointer="yes" {
-    Entry dir_entry := static_cast(Entry, "pointer", directory[addr]);
-
-    if (is_valid(dir_entry)) {
-      return dir_entry;
+        // Waiting for write-ack from memory
+        MI_m, AccessPermission:Busy,       desc="Moving to I waiting for ack";
+        SS_m, AccessPermission:Busy,       desc="Moving to S waiting for ack";
     }
 
-    dir_entry :=  static_cast(Entry, "pointer",
-                              directory.allocate(addr, new Entry));
-    return dir_entry;
-  }
+    enumeration(Event, desc="Directory events") {
+        // Data requests from the cache
+        GetS,         desc="Request for read-only data from cache";
+        GetM,         desc="Request for read-write data from cache";
 
-  State getState(TBE tbe, Addr addr) {
-    if (is_valid(tbe)) {
-      return tbe.TBEState;
-    } else if (directory.isPresent(addr)) {
-      return getDirectoryEntry(addr).DirectoryState;
-    } else {
-      return State:I;
-    }
-  }
+        SELF_INV_LOAD, desc="self_invalidation on load hit";
+        SELF_INV_DIRTY, desc="self_invalidation";
 
-  void setState(TBE tbe, Addr addr, State state) {
+        SELF_INV_DIR_ACK, desc="directory acked self inv";
+        //SELF_INV_DIR_ACK_DIRTY, desc="directory acked self inv";
+        Self_Inv_Only_Sharer, desc="self inv clean and only sharer";
+        Self_Inv, desc="self inv clean ";
+        Self_Inv_Dirty, desc="sef inv dirty";
+        Dummy_Self_Inv, desc="other requestors got in way so need to send ack and move on";
 
-    if (is_valid(tbe)) {
-      tbe.TBEState := state;
-    }
+        // Writeback requests from the cache
+        PutSNotLast,  desc="PutS and the block has other sharers";
+        PutSLast,     desc="PutS and the block has no other sharers";
+        PutMOwner,    desc="Dirty data writeback from the owner";
+        PutMNonOwner, desc="Dirty data writeback from non-owner";
 
-    if (directory.isPresent(addr)) {
+        // Cache responses
+        Data,         desc="Response to fwd request with data";
 
-      if (state == State:M) {
-        assert(getDirectoryEntry(addr).Owner.count() == 1);
-        assert(getDirectoryEntry(addr).Sharers.count() == 0);
-      }
-
-      getDirectoryEntry(addr).DirectoryState := state;
-
-      if (state == State:I)  {
-        assert(getDirectoryEntry(addr).Owner.count() == 0);
-        assert(getDirectoryEntry(addr).Sharers.count() == 0);
-      }
-    }
-  }
-
-  AccessPermission getAccessPermission(Addr addr) {
-    TBE tbe := TBEs[addr];
-    if(is_valid(tbe)) {
-      return Directory_State_to_permission(tbe.TBEState);
+        // From Memory
+        MemData,      desc="Data from memory";
+        MemAck,       desc="Ack from memory that write is complete";
     }
 
-    if(directory.isPresent(addr)) {
-      return Directory_State_to_permission(getDirectoryEntry(addr).DirectoryState);
+    // NOTE: We use a netdest for the sharers and the owner so we can simply
+    // copy the structure into the message we send as a response.
+    structure(Entry, desc="...", interface="AbstractCacheEntry", main="false") {
+        State DirState,         desc="Directory state";
+        NetDest Sharers,        desc="Sharers for this block";
+        NetDest Owner,          desc="Owner of this block";
     }
 
-    return AccessPermission:NotPresent;
-  }
+    Tick clockEdge();
 
-  void setAccessPermission(Addr addr, State state) {
-    if (directory.isPresent(addr)) {
-      getDirectoryEntry(addr).changePermission(Directory_State_to_permission(state));
-    }
-  }
-
-  void functionalRead(Addr addr, Packet *pkt) {
-    // if this is called; state is always either invalid or data was just been WB
-    // to memory (and we are waiting for an ack), so go directly to memory
-    functionalMemoryRead(pkt);
-  }
-
-  int functionalWrite(Addr addr, Packet *pkt) {
-    int num_functional_writes := 0;
-
-    TBE tbe := TBEs[addr];
-    if(is_valid(tbe)) {
-      num_functional_writes := num_functional_writes +
-            testAndWrite(addr, tbe.DataBlk, pkt);
-    }
-
-    num_functional_writes := num_functional_writes + functionalMemoryWrite(pkt);
-    return num_functional_writes;
-  }
-
-  // ** OUT_PORTS **
-  out_port(forwardNetwork_out, RequestMsg, forwardFromDir);
-  out_port(responseNetwork_out, ResponseMsg, responseFromDir);
-  out_port(requestQueue_out, ResponseMsg, requestToDir); // For recycling requests
-  out_port(dmaResponseNetwork_out, DMAResponseMsg, dmaResponseFromDir);
-  out_port(memQueue_out, MemoryMsg, requestToMemory);
-
-  // ** IN_PORTS **
-  in_port(dmaRequestQueue_in, DMARequestMsg, dmaRequestToDir) {
-    if (dmaRequestQueue_in.isReady(clockEdge())) {
-      peek(dmaRequestQueue_in, DMARequestMsg) {
-        TBE tbe := TBEs[in_msg.LineAddress];
-        if (in_msg.Type == DMARequestType:READ) {
-          trigger(Event:DMA_READ, in_msg.LineAddress, tbe);
-        } else if (in_msg.Type == DMARequestType:WRITE) {
-          trigger(Event:DMA_WRITE, in_msg.LineAddress, tbe);
-        } else {
-          error("Invalid message");
+    // This either returns the valid directory entry, or, if it hasn't been
+    // allocated yet, this allocates the entry. This may save some host memory
+    // since this is lazily populated.
+    Entry getDirectoryEntry(Addr addr), return_by_pointer = "yes" {
+        Entry dir_entry := static_cast(Entry, "pointer", directory[addr]);
+        if (is_invalid(dir_entry)) {
+            // This first time we see this address allocate an entry for it.
+            dir_entry := static_cast(Entry, "pointer",
+                                     directory.allocate(addr, new Entry));
         }
-      }
+        return dir_entry;
     }
-  }
 
-  in_port(requestQueue_in, RequestMsg, requestToDir) {
-    if (requestQueue_in.isReady(clockEdge())) {
-      peek(requestQueue_in, RequestMsg) {
-        TBE tbe := TBEs[in_msg.addr];
-        if (in_msg.Type == CoherenceRequestType:GETS) {
-          trigger(Event:GETS, in_msg.addr, tbe);
-        } else if (in_msg.Type == CoherenceRequestType:GETX) {
-          trigger(Event:GETX, in_msg.addr, tbe);
-        } else if (in_msg.Type == CoherenceRequestType:PUTX) {
-          if (getDirectoryEntry(in_msg.addr).Owner.isElement(in_msg.Requestor)) {
-            trigger(Event:PUTX, in_msg.addr, tbe);
-          } else {
-            trigger(Event:PUTX_NotOwner, in_msg.addr, tbe);
-          }
+    /*************************************************************************/
+    // Functions that we need to define/override to use our specific structures
+    // in this implementation.
+    // NOTE: we don't have TBE in this machine, so we don't need to pass it
+    // to these overridden functions.
+
+    State getState(Addr addr) {
+        if (directory.isPresent(addr)) {
+            return getDirectoryEntry(addr).DirState;
         } else {
-          error("Invalid message");
+            return State:I;
         }
-      }
     }
-  }
 
-//added by SS
-  // off-chip memory request/response is done
-  in_port(memQueue_in, MemoryMsg, responseFromMemory) {
-    if (memQueue_in.isReady(clockEdge())) {
-      peek(memQueue_in, MemoryMsg) {
-        TBE tbe := TBEs[in_msg.addr];
-        if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
-          trigger(Event:Memory_Data, in_msg.addr, tbe);
-        } else if (in_msg.Type == MemoryRequestType:MEMORY_WB) {
-          trigger(Event:Memory_Ack, in_msg.addr, tbe);
+    void setState(Addr addr, State state) {
+        if (directory.isPresent(addr)) {
+            if (state == State:M) {
+                DPRINTF(RubySlicc, "Owner %s\n", getDirectoryEntry(addr).Owner);
+                assert(getDirectoryEntry(addr).Owner.count() == 1);
+                assert(getDirectoryEntry(addr).Sharers.count() == 0);
+            }
+            getDirectoryEntry(addr).DirState := state;
+            if (state == State:I)  {
+                assert(getDirectoryEntry(addr).Owner.count() == 0);
+                assert(getDirectoryEntry(addr).Sharers.count() == 0);
+            }
+        }
+    }
+
+    // This is really the access permissions of memory.
+    // TODO: I don't understand this at the directory.
+    AccessPermission getAccessPermission(Addr addr) {
+        if (directory.isPresent(addr)) {
+            Entry e := getDirectoryEntry(addr);
+            return Directory_State_to_permission(e.DirState);
+        } else  {
+            return AccessPermission:NotPresent;
+        }
+    }
+    void setAccessPermission(Addr addr, State state) {
+        if (directory.isPresent(addr)) {
+            Entry e := getDirectoryEntry(addr);
+            e.changePermission(Directory_State_to_permission(state));
+        }
+    }
+
+    void functionalRead(Addr addr, Packet *pkt) {
+        functionalMemoryRead(pkt);
+    }
+
+    // This returns the number of writes. So, if we write then return 1
+    int functionalWrite(Addr addr, Packet *pkt) {
+        if (functionalMemoryWrite(pkt)) {
+            return 1;
         } else {
-          DPRINTF(RubySlicc,"%s\n", in_msg.Type);
-          error("Invalid message");
+            return 0;
         }
-      }
     }
-  }
 
-  // Actions
 
-  action(a_sendWriteBackAck, "a", desc="Send writeback ack to requestor") {
-    peek(requestQueue_in, RequestMsg) {
-      enqueue(forwardNetwork_out, RequestMsg, directory_latency) {
-        out_msg.addr := address;
-        out_msg.Type := CoherenceRequestType:WB_ACK;
-        out_msg.Requestor := in_msg.Requestor;
-        out_msg.Destination.add(in_msg.Requestor);
-        out_msg.MessageSize := MessageSizeType:Writeback_Control;
-      }
+    /*************************************************************************/
+    // Network ports
+
+    out_port(forward_out, RequestMsg, forwardToCache);
+    out_port(response_out, ResponseMsg, responseToCache);
+    out_port(memQueue_out, MemoryMsg, requestToMemory);
+
+    in_port(memQueue_in, MemoryMsg, responseFromMemory) {
+        if (memQueue_in.isReady(clockEdge())) {
+            peek(memQueue_in, MemoryMsg) {
+                if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
+                    trigger(Event:MemData, in_msg.addr);
+                } else if (in_msg.Type == MemoryRequestType:MEMORY_WB) {
+                    trigger(Event:MemAck, in_msg.addr);
+                } else {
+                    error("Invalid message");
+                }
+            }
+        }
     }
-  }
 
-  action(l_sendWriteBackAck, "la", desc="Send writeback ack to requestor") {
-    peek(memQueue_in, MemoryMsg) {
-      enqueue(forwardNetwork_out, RequestMsg, 1) {
-        out_msg.addr := address;
-        out_msg.Type := CoherenceRequestType:WB_ACK;
-        out_msg.Requestor := in_msg.OriginalRequestorMachId;
-        out_msg.Destination.add(in_msg.OriginalRequestorMachId);
-        out_msg.MessageSize := MessageSizeType:Writeback_Control;
-      }
+    in_port(response_in, ResponseMsg, responseFromCache) {
+        if (response_in.isReady(clockEdge())) {
+            peek(response_in, ResponseMsg) {
+                if (in_msg.Type == CoherenceResponseType:Data) {
+                    trigger(Event:Data, in_msg.addr);
+                } else {
+                    error("Unexpected message type.");
+                }
+            }
+        }
     }
-  }
 
-  action(b_sendWriteBackNack, "b", desc="Send writeback nack to requestor") {
-    peek(requestQueue_in, RequestMsg) {
-      enqueue(forwardNetwork_out, RequestMsg, directory_latency) {
-        out_msg.addr := address;
-        out_msg.Type := CoherenceRequestType:WB_NACK;
-        out_msg.Requestor := in_msg.Requestor;
-        out_msg.Destination.add(in_msg.Requestor);
-        out_msg.MessageSize := MessageSizeType:Writeback_Control;
-      }
+    in_port(request_in, RequestMsg, requestFromCache) {
+        if (request_in.isReady(clockEdge())) {
+            peek(request_in, RequestMsg) {
+                Entry entry := getDirectoryEntry(in_msg.addr);
+                if (in_msg.Type == CoherenceRequestType:GetS) {
+                    // NOTE: Since we don't have a TBE in this machine, there
+                    // is no need to pass a TBE into trigger. Also, for the
+                    // directory there is no cache entry.
+                    trigger(Event:GetS, in_msg.addr);
+                } else if (in_msg.Type == CoherenceRequestType:GetM) {
+                    trigger(Event:GetM, in_msg.addr);
+                } else if (in_msg.Type == CoherenceRequestType:PutS) {
+                    assert(is_valid(entry));
+                    // If there is only a single sharer (i.e., the requestor)
+                    if (entry.Sharers.count() == 1) {
+                        assert(entry.Sharers.isElement(in_msg.Requestor));
+                        trigger(Event:PutSLast, in_msg.addr);
+                    } else {
+                        trigger(Event:PutSNotLast, in_msg.addr);
+                    }
+                } else if (in_msg.Type == CoherenceRequestType:PutM) {
+                    assert(is_valid(entry));
+                    if (entry.Owner.isElement(in_msg.Requestor)) {
+                        trigger(Event:PutMOwner, in_msg.addr);
+                    } else {
+                        trigger(Event:PutMNonOwner, in_msg.addr);
+                    }
+                } 
+                else if(in_msg.Type == CoherenceRequestType:SELF_INV_LOAD){
+                    if(entry.Sharers.count() == 1){
+                        trigger(Event:Self_Inv_Only_Sharer, in_msg.addr);
+                    }
+                    else{
+                        trigger(Event:Self_Inv, in_msg.addr);
+                    }
+                }
+                else if(in_msg.Type == CoherenceRequestType:SELF_INV_DIRTY){
+                    if(getDirectoryEntry(in_msg.addr).Owner.isElement(in_msg.Requestor)){
+                        trigger(Event:Self_Inv_Dirty, in_msg.addr);
+                    }
+                    //else if(entry.Sharers.isElement(in_msg.Requestor)){
+                    else{
+                        trigger(Event:Self_Inv, in_msg.addr);
+                    }
+                    //}
+                    //else{
+                       // trigger(Event:Dummy_Self_Inv, in_msg.addr);
+                    //}
+                    
+                }
+
+                
+                else {
+                    error("Unexpected message type.");
+                }
+            }
+        }
     }
-  }
 
-  action(c_clearOwner, "c", desc="Clear the owner field") {
-    getDirectoryEntry(address).Owner.clear();
-  }
 
-  action(d_sendData, "d", desc="Send data to requestor") {
-    peek(memQueue_in, MemoryMsg) {
-      enqueue(responseNetwork_out, ResponseMsg, 1) {
-        out_msg.addr := address;
-        out_msg.Type := CoherenceResponseType:DATA;
-        out_msg.Sender := machineID;
-        out_msg.Destination.add(in_msg.OriginalRequestorMachId);
-        out_msg.DataBlk := in_msg.DataBlk;
-        out_msg.MessageSize := MessageSizeType:Response_Data;
-      }
+
+    /*************************************************************************/
+    // Actions
+
+    // Memory actions.
+
+    action(sendMemRead, "r", desc="Send a memory read request") {
+        peek(request_in, RequestMsg) {
+            // Send request through special memory request queue. At some
+            // point the response will be on the memory response queue.
+            // Like enqueue, this takes a latency for the request.
+            enqueue(memQueue_out, MemoryMsg, toMemLatency) {
+                out_msg.addr := address;
+                out_msg.Type := MemoryRequestType:MEMORY_READ;
+                out_msg.Sender := in_msg.Requestor;
+                out_msg.MessageSize := MessageSizeType:Request_Control;
+                out_msg.Len := 0;
+            }
+        }
     }
-  }
 
-  action(dr_sendDMAData, "dr", desc="Send Data to DMA controller from directory") {
-    peek(memQueue_in, MemoryMsg) {
-      enqueue(dmaResponseNetwork_out, DMAResponseMsg, 1) {
-        assert(is_valid(tbe));
-        out_msg.PhysicalAddress := address;
-        out_msg.LineAddress := address;
-        out_msg.Type := DMAResponseType:DATA;
-        out_msg.DataBlk := in_msg.DataBlk;   // we send the entire data block and rely on the dma controller to split it up if need be
-        out_msg.Destination.add(tbe.DmaRequestor);
-        out_msg.MessageSize := MessageSizeType:Response_Data;
-      }
+    action(sendDataToMem, "w", desc="Write data to memory") {
+        peek(request_in, RequestMsg) {
+            DPRINTF(RubySlicc, "Writing memory for %#x\n", address);
+            DPRINTF(RubySlicc, "Writing %s\n", in_msg.DataBlk);
+            enqueue(memQueue_out, MemoryMsg, toMemLatency) {
+                out_msg.addr := address;
+                out_msg.Type := MemoryRequestType:MEMORY_WB;
+                out_msg.Sender := in_msg.Requestor;
+                out_msg.MessageSize := MessageSizeType:Writeback_Data;
+                out_msg.DataBlk := in_msg.DataBlk;
+                out_msg.Len := 0;
+            }
+        }
     }
-  }
 
-
-
-  action(drp_sendDMAData, "drp", desc="Send Data to DMA controller from incoming PUTX") {
-    peek(requestQueue_in, RequestMsg) {
-      enqueue(dmaResponseNetwork_out, DMAResponseMsg, 1) {
-        assert(is_valid(tbe));
-        out_msg.PhysicalAddress := address;
-        out_msg.LineAddress := address;
-        out_msg.Type := DMAResponseType:DATA;
-
-        // we send the entire data block and rely on the dma controller
-        // to split it up if need be
-        out_msg.DataBlk := in_msg.DataBlk;
-        out_msg.Destination.add(tbe.DmaRequestor);
-        out_msg.MessageSize := MessageSizeType:Response_Data;
-      }
+    action(sendRespDataToMem, "rw", desc="Write data to memory from resp") {
+        peek(response_in, ResponseMsg) {
+            DPRINTF(RubySlicc, "Writing memory for %#x\n", address);
+            DPRINTF(RubySlicc, "Writing %s\n", in_msg.DataBlk);
+            enqueue(memQueue_out, MemoryMsg, toMemLatency) {
+                out_msg.addr := address;
+                out_msg.Type := MemoryRequestType:MEMORY_WB;
+                out_msg.Sender := in_msg.Sender;
+                out_msg.MessageSize := MessageSizeType:Writeback_Data;
+                out_msg.DataBlk := in_msg.DataBlk;
+                out_msg.Len := 0;
+            }
+        }
     }
-  }
 
-  action(da_sendDMAAck, "da", desc="Send Ack to DMA controller") {
-      enqueue(dmaResponseNetwork_out, DMAResponseMsg, 1) {
-        assert(is_valid(tbe));
-        out_msg.PhysicalAddress := address;
-        out_msg.LineAddress := address;
-        out_msg.Type := DMAResponseType:ACK;
-        out_msg.Destination.add(tbe.DmaRequestor);
-        out_msg.MessageSize := MessageSizeType:Writeback_Control;
-      }
-  }
+    // Sharer/owner actions
 
-  action(e_ownerIsRequestor, "e", desc="The owner is now the requestor") {
-    peek(requestQueue_in, RequestMsg) {
-      getDirectoryEntry(address).Owner.clear();
-      getDirectoryEntry(address).Owner.add(in_msg.Requestor);
+    action(addReqToSharers, "aS", desc="Add requestor to sharer list") {
+        peek(request_in, RequestMsg) {
+            getDirectoryEntry(address).Sharers.add(in_msg.Requestor);
+        }
     }
-  }
 
-  action(f_forwardRequest, "f", desc="Forward request to owner") {
-    peek(requestQueue_in, RequestMsg) {
-      APPEND_TRANSITION_COMMENT("Own: ");
-      APPEND_TRANSITION_COMMENT(getDirectoryEntry(in_msg.addr).Owner);
-      APPEND_TRANSITION_COMMENT("Req: ");
-      APPEND_TRANSITION_COMMENT(in_msg.Requestor);
-      enqueue(forwardNetwork_out, RequestMsg, directory_latency) {
-        out_msg.addr := address;
-        out_msg.Type := in_msg.Type;
-        out_msg.Requestor := in_msg.Requestor;
-        out_msg.Destination := getDirectoryEntry(in_msg.addr).Owner;
-        out_msg.MessageSize := MessageSizeType:Writeback_Control;
-      }
+    action(setOwner, "sO", desc="Set the owner") {
+        peek(request_in, RequestMsg) {
+            getDirectoryEntry(address).Owner.add(in_msg.Requestor);
+        }
     }
-  }
 
-  action(inv_sendCacheInvalidate, "inv", desc="Invalidate a cache block") {
-    peek(dmaRequestQueue_in, DMARequestMsg) {
-      enqueue(forwardNetwork_out, RequestMsg, directory_latency) {
-        out_msg.addr := address;
-        out_msg.Type := CoherenceRequestType:INV;
-        out_msg.Requestor := machineID;
-        out_msg.Destination := getDirectoryEntry(in_msg.PhysicalAddress).Owner;
-        out_msg.MessageSize := MessageSizeType:Writeback_Control;
-      }
+    action(addOwnerToSharers, "oS", desc="Add the owner to sharers") {
+        Entry e := getDirectoryEntry(address);
+        assert(e.Owner.count() == 1);
+        e.Sharers.addNetDest(e.Owner);
     }
-  }
 
-  action(i_popIncomingRequestQueue, "i", desc="Pop incoming request queue") {
-    requestQueue_in.dequeue(clockEdge());
-  }
-
-  action(p_popIncomingDMARequestQueue, "p", desc="Pop incoming DMA queue") {
-    dmaRequestQueue_in.dequeue(clockEdge());
-  }
-
-  action(v_allocateTBE, "v", desc="Allocate TBE") {
-    peek(dmaRequestQueue_in, DMARequestMsg) {
-      TBEs.allocate(address);
-      set_tbe(TBEs[address]);
-      tbe.DataBlk := in_msg.DataBlk;
-      tbe.PhysicalAddress := in_msg.PhysicalAddress;
-      tbe.Len := in_msg.Len;
-      tbe.DmaRequestor := in_msg.Requestor;
+    action(removeReqFromSharers, "rS", desc="Remove requestor from sharers") {
+        peek(request_in, RequestMsg) {
+            getDirectoryEntry(address).Sharers.remove(in_msg.Requestor);
+        }
     }
-  }
 
-  action(r_allocateTbeForDmaRead, "\r", desc="Allocate TBE for DMA Read") {
-    peek(dmaRequestQueue_in, DMARequestMsg) {
-      TBEs.allocate(address);
-      set_tbe(TBEs[address]);
-      tbe.DmaRequestor := in_msg.Requestor;
+    action(clearSharers, "cS", desc="Clear the sharer list") {
+        getDirectoryEntry(address).Sharers.clear();
     }
-  }
 
-  action(v_allocateTBEFromRequestNet, "\v", desc="Allocate TBE") {
-    peek(requestQueue_in, RequestMsg) {
-      TBEs.allocate(address);
-      set_tbe(TBEs[address]);
-      tbe.DataBlk := in_msg.DataBlk;
+    action(clearOwner, "cO", desc="Clear the owner") {
+        getDirectoryEntry(address).Owner.clear();
     }
-  }
 
-  action(w_deallocateTBE, "w", desc="Deallocate TBE") {
-    TBEs.deallocate(address);
-    unset_tbe();
-  }
+    // Invalidates and forwards
 
-  action(z_recycleRequestQueue, "z", desc="recycle request queue") {
-    requestQueue_in.recycle(clockEdge(), cyclesToTicks(recycle_latency));
-  }
-
-  action(y_recycleDMARequestQueue, "y", desc="recycle dma request queue") {
-    dmaRequestQueue_in.recycle(clockEdge(), cyclesToTicks(recycle_latency));
-  }
-
-
-  action(qf_queueMemoryFetchRequest, "qf", desc="Queue off-chip fetch request") {
-    peek(requestQueue_in, RequestMsg) {
-      enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
-        out_msg.addr := address;
-        out_msg.Type := MemoryRequestType:MEMORY_READ;
-        out_msg.Sender := in_msg.Requestor;
-        out_msg.MessageSize := MessageSizeType:Request_Control;
-        out_msg.Len := 0;
-      }
+    action(sendInvToSharers, "i", desc="Send invalidate to all sharers") {
+        peek(request_in, RequestMsg) {
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:Inv;
+                out_msg.Requestor := in_msg.Requestor;
+                out_msg.Destination := getDirectoryEntry(address).Sharers;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+        }
     }
-  }
 
-  action(qf_queueMemoryFetchRequestDMA, "qfd", desc="Queue off-chip fetch request") {
-    peek(dmaRequestQueue_in, DMARequestMsg) {
-      enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
-        out_msg.addr := address;
-        out_msg.Type := MemoryRequestType:MEMORY_READ;
-        out_msg.Sender := in_msg.Requestor;
-        out_msg.MessageSize := MessageSizeType:Request_Control;
-        out_msg.Len := 0;
-      }
+    action(sendFwdGetS, "fS", desc="Send forward getS to owner") {
+        assert(getDirectoryEntry(address).Owner.count() == 1);
+        peek(request_in, RequestMsg) {
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:GetS;
+                out_msg.Requestor := in_msg.Requestor;
+                out_msg.Destination := getDirectoryEntry(address).Owner;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+        }
     }
-  }
 
-  action(qw_queueMemoryWBRequest_partial, "qwp", desc="Queue off-chip writeback request") {
-    peek(dmaRequestQueue_in, DMARequestMsg) {
-      enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
-        out_msg.addr := address;
-        out_msg.Type := MemoryRequestType:MEMORY_WB;
-        out_msg.Sender := in_msg.Requestor;
-        out_msg.MessageSize := MessageSizeType:Writeback_Data;
-        out_msg.DataBlk := in_msg.DataBlk;
-        out_msg.Len := in_msg.Len;
-      }
+    action(sendFwdGetM, "fM", desc="Send forward getM to owner") {
+        assert(getDirectoryEntry(address).Owner.count() == 1);
+        peek(request_in, RequestMsg) {
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:GetM;
+                out_msg.Requestor := in_msg.Requestor;
+                out_msg.Destination := getDirectoryEntry(address).Owner;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+        }
     }
-  }
 
-  action(qw_queueMemoryWBRequest_partialTBE, "qwt", desc="Queue off-chip writeback request") {
-    peek(requestQueue_in, RequestMsg) {
-      enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
-        out_msg.addr := address;
-        out_msg.Type := MemoryRequestType:MEMORY_WB;
-        out_msg.Sender := in_msg.Requestor;
-        out_msg.MessageSize := MessageSizeType:Writeback_Data;
-        out_msg.DataBlk := tbe.DataBlk;
-        out_msg.Len := tbe.Len;
-      }
+    // Responses to requests
+
+    // This also needs to send along the number of sharers!!!!
+    action(sendDataToReq, "d", desc="Send data from memory to requestor. ") {
+                                    //"May need to send sharer number, too") {
+        peek(memQueue_in, MemoryMsg) {
+            enqueue(response_out, ResponseMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceResponseType:Data;
+                out_msg.Sender := machineID;
+                out_msg.Destination.add(in_msg.OriginalRequestorMachId);
+                out_msg.DataBlk := in_msg.DataBlk;
+                out_msg.MessageSize := MessageSizeType:Data;
+                Entry e := getDirectoryEntry(address);
+                // Only need to include acks if we are the owner.
+                if (e.Owner.isElement(in_msg.OriginalRequestorMachId)) {
+                    out_msg.Acks := e.Sharers.count();
+                } else {
+                    out_msg.Acks := 0;
+                }
+                assert(out_msg.Acks >= 0);
+            }
+        }
     }
-  }
 
-  action(l_queueMemoryWBRequest, "lq", desc="Write PUTX data to memory") {
-    peek(requestQueue_in, RequestMsg) {
-      enqueue(memQueue_out, MemoryMsg, to_memory_controller_latency) {
-        out_msg.addr := address;
-        out_msg.Type := MemoryRequestType:MEMORY_WB;
-        out_msg.Sender := in_msg.Requestor;
-        out_msg.MessageSize := MessageSizeType:Writeback_Data;
-        out_msg.DataBlk := in_msg.DataBlk;
-        out_msg.Len := 0;
-      }
+    action(sendPutAck, "a", desc="Send the put ack") {
+        peek(request_in, RequestMsg) {
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:PutAck;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+        }
     }
-  }
 
-  action(l_popMemQueue, "q", desc="Pop off-chip request queue") {
-    memQueue_in.dequeue(clockEdge());
-  }
+    action(sendSelfInvAck, "self", desc="Send the self inv ack") {
+        peek(request_in, RequestMsg) {
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_DIR_ACK;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+        }
+    }
 
-  // TRANSITIONS
-  transition({M_DRD, M_DWR, M_DWRI, M_DRDI}, GETX) {
-    z_recycleRequestQueue;
-  }
+    // Queue management
 
-  transition({IM, MI, ID, ID_W}, {GETX, GETS, PUTX, PUTX_NotOwner} ) {
-    z_recycleRequestQueue;
-  }
+    action(popResponseQueue, "pR", desc="Pop the response queue") {
+        response_in.dequeue(clockEdge());
+    }
 
-  transition({IM, MI, ID, ID_W}, {DMA_READ, DMA_WRITE} ) {
-    y_recycleDMARequestQueue;
-  }
+    action(popRequestQueue, "pQ", desc="Pop the request queue") {
+        request_in.dequeue(clockEdge());
+    }
 
+    action(popMemQueue, "pM", desc="Pop the memory queue") {
+        memQueue_in.dequeue(clockEdge());
+    }
 
-  transition(I, GETX, IM) {
-    //d_sendData;
-    v_allocateTBEFromRequestNet;
-    qf_queueMemoryFetchRequest;
-    e_ownerIsRequestor;
-    i_popIncomingRequestQueue;
-  }
-
-  transition(IM, Memory_Data, M) {
-    d_sendData;
-    //e_ownerIsRequestor;
-    w_deallocateTBE;
-    l_popMemQueue;
-  }
+    // Stalling actions
+    action(stall, "z", desc="Stall the incoming request") {
+        // Do nothing.
+    }
 
 
-  transition(I, DMA_READ, ID) {
-    //dr_sendDMAData;
-    r_allocateTbeForDmaRead;
-    qf_queueMemoryFetchRequestDMA;
-    p_popIncomingDMARequestQueue;
-  }
+    /*************************************************************************/
+    // transitions
+    
+    transition({I, S}, GetS, S_m) {
+        sendMemRead;
+        addReqToSharers;
+        popRequestQueue;
+    }
 
-  transition(ID, Memory_Data, I) {
-    dr_sendDMAData;
-    //p_popIncomingDMARequestQueue;
-    w_deallocateTBE;
-    l_popMemQueue;
-  }
+    transition(I, {PutSNotLast, PutSLast, PutMNonOwner}) {
+        sendPutAck;
+        popRequestQueue;
+    }
+
+    transition(S_m, MemData, S) {
+        sendDataToReq;
+        popMemQueue;
+    }
+
+    transition(I, GetM, M_m) {
+        sendMemRead;
+        setOwner;
+        popRequestQueue;
+    }
+
+    transition(M_m, MemData, M) {
+        sendDataToReq;
+        clearSharers; // NOTE: This isn't *required* in some cases.
+        popMemQueue;
+    }
+
+    transition(S, GetM, M_m) {
+        sendMemRead;
+        removeReqFromSharers;
+        sendInvToSharers;
+        setOwner;
+        popRequestQueue;
+    }
+
+    transition({S, S_D, SS_m, S_m}, {PutSNotLast, PutMNonOwner}) {
+        removeReqFromSharers;
+        sendPutAck;
+        popRequestQueue;
+    }
+
+    transition({S, S_D, SS_m, S_m}, {Self_Inv}) {
+        removeReqFromSharers;
+        sendSelfInvAck;
+        popRequestQueue;
+    }
+
+    transition(S, Self_Inv_Only_Sharer, I) {
+        removeReqFromSharers;
+        sendSelfInvAck;
+        popRequestQueue;
+    }
+        
+    transition(S, PutSLast, I) {
+        removeReqFromSharers;
+        sendPutAck;
+        popRequestQueue;
+    }
+
+    transition(M, GetS, S_D) {
+        sendFwdGetS;
+        addReqToSharers;
+        addOwnerToSharers;
+        clearOwner;
+        popRequestQueue;
+    }
+
+    transition(M, GetM) {
+        sendFwdGetM;
+        clearOwner;
+        setOwner;
+        popRequestQueue;
+    }
+
+    transition({M, M_m, MI_m}, {PutSNotLast, PutSLast, PutMNonOwner}) {
+        sendPutAck;
+        popRequestQueue;
+    }
+
+    transition( M_m, {Self_Inv_Dirty, Self_Inv}) {
+        sendSelfInvAck;
+        popRequestQueue;
+    }
+
+    transition(M, {Self_Inv_Dirty}, MI_m) { //Self_Inv was here
+        sendDataToMem;
+        clearOwner;
+        sendSelfInvAck;
+        popRequestQueue;
+    }
+    transition(M, Self_Inv){
+        sendSelfInvAck;
+        popRequestQueue;
+    }
+
+    transition(M, PutMOwner, MI_m) {
+        sendDataToMem;
+        clearOwner;
+        sendPutAck;
+        popRequestQueue;
+    }
+
+    transition(MI_m, MemAck, I) {
+        popMemQueue;
+    }
+
+    transition(S_D, {GetS, GetM}) {
+        stall;
+    }
+    transition(SS_m,PutSLast ){
+        stall;
+    }
+
+    transition(S_D, PutSLast) {
+        removeReqFromSharers;
+        sendPutAck;
+        popRequestQueue;
+    }
+    transition(S_D, Self_Inv_Only_Sharer) {
+        removeReqFromSharers;
+        sendSelfInvAck;
+        popRequestQueue;
+    }
+
+    transition(S_D, Data, SS_m) {
+        sendRespDataToMem;
+        popResponseQueue;
+    }
+
+    transition(S,Data){
+        //NIcole: self invalidation must have satified the data request so
+        // this is the left over response
+        popResponseQueue;
+    }
+
+    transition(S_D, Self_Inv_Dirty, SS_m) {
+        //don't wait for memory and take the self inv dirty data instead
+        removeReqFromSharers
+        //sendRespDataToMem;
+        sendDataToMem;
+        sendSelfInvAck
+        popRequestQueue;
+    }
+
+    transition(SS_m, MemAck, S) {
+        popMemQueue;
+    }
+
+    // If we get another request for a block that's waiting on memory,
+    // stall that request.
+    transition({MI_m, SS_m, S_m, M_m}, {GetS, GetM}) {
+        stall;
+    }
 
 
 
-  transition(I, DMA_WRITE, ID_W) {
-    v_allocateTBE;
-    qw_queueMemoryWBRequest_partial;
-    p_popIncomingDMARequestQueue;
-  }
-
-  transition(ID_W, Memory_Ack, I) {
-    da_sendDMAAck;
-    w_deallocateTBE;
-    l_popMemQueue;
-  }
-
-  transition(M, DMA_READ, M_DRD) {
-    v_allocateTBE;
-    inv_sendCacheInvalidate;
-    p_popIncomingDMARequestQueue;
-  }
-
-  transition(M_DRD, PUTX, M_DRDI) {
-    drp_sendDMAData;
-    c_clearOwner;
-    l_queueMemoryWBRequest;
-    i_popIncomingRequestQueue;
-  }
-
-  transition(M_DRDI, Memory_Ack, I) {
-    l_sendWriteBackAck;
-    w_deallocateTBE;
-    l_popMemQueue;
-  }
-
-
-  transition(M, DMA_WRITE, M_DWR) {
-    v_allocateTBE;
-    inv_sendCacheInvalidate;
-    p_popIncomingDMARequestQueue;
-  }
-
-  transition(M_DWR, PUTX, M_DWRI) {
-    qw_queueMemoryWBRequest_partialTBE;
-    c_clearOwner;
-    i_popIncomingRequestQueue;
-  }
-
-  transition(M_DWRI, Memory_Ack, I) {
-    l_sendWriteBackAck;
-    da_sendDMAAck;
-    w_deallocateTBE;
-    l_popMemQueue;
-  }
-
-  transition(M, GETX, M) {
-    f_forwardRequest;
-    e_ownerIsRequestor;
-    i_popIncomingRequestQueue;
-  }
-
-  transition(M, PUTX, MI) {
-    c_clearOwner;
-    v_allocateTBEFromRequestNet;
-    l_queueMemoryWBRequest;
-    i_popIncomingRequestQueue;
-  }
-
-  transition(MI, Memory_Ack, I) {
-    l_sendWriteBackAck;
-    w_deallocateTBE;
-    l_popMemQueue;
-  }
-
-  transition(M, PUTX_NotOwner, M) {
-    b_sendWriteBackNack;
-    i_popIncomingRequestQueue;
-  }
-
-  transition(I, PUTX_NotOwner, I) {
-    b_sendWriteBackNack;
-    i_popIncomingRequestQueue;
-  }
 }

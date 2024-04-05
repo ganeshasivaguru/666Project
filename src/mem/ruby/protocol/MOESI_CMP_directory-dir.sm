@@ -115,6 +115,11 @@ machine(MachineType:Directory, "Directory protocol")
     DMA_ACK,       desc="DMA Ack";
     Data,          desc="Data to directory";
     All_Acks,      desc="All pending acks, unblocks, etc have been received";
+    SELF_INV_CLEAN, desc="self inv to clean block";
+    SELF_INV_DIRTY, desc="self inv to dirty block";
+
+    SELF_INV_DIR_ACK_CLEAN, desc="directory acked self inv"
+    SELF_INV_DIR_ACK_DIRTY, desc="directory acked self inv"
   }
 
   // TYPES
@@ -290,6 +295,7 @@ machine(MachineType:Directory, "Directory protocol")
   out_port(forwardNetwork_out, RequestMsg, forwardFromDir);
   out_port(responseNetwork_out, ResponseMsg, responseFromDir);
   out_port(memQueue_out, MemoryMsg, requestToMemory);
+  
 
   // For inserting internal unblocks only
   out_port(unblockNetwork_out_internal, ResponseMsg, responseToDir);
@@ -368,7 +374,17 @@ machine(MachineType:Directory, "Directory protocol")
             trigger(Event:DMA_WRITE_PARTIAL, makeLineAddress(in_msg.addr),
                   TBEs[makeLineAddress(in_msg.addr)]);
           }
-        } else {
+        } 
+        else if((in_msg.Type == CoherenceRequestType:SELF_INV_CLEAN)){
+          trigger(Event:SELF_INV_CLEAN, makeLineAddress(in_msg.addr),
+                  TBEs[makeLineAddress(in_msg.addr)]);
+
+        }
+        else if((in_msg.Type == CoherenceRequestType:SELF_INV_DIRTY)){
+        trigger(Event:SELF_INV_DIRTY, makeLineAddress(in_msg.addr),
+                  TBEs[makeLineAddress(in_msg.addr)]);
+        }
+        else {
           error("Invalid message");
         }
       }
@@ -554,6 +570,24 @@ machine(MachineType:Directory, "Directory protocol")
           out_msg.MessageSize := MessageSizeType:Invalidate_Control;
         }
       }
+    }
+  }
+
+  //Nicole: send requestor INV
+  action(send_requestor_inv, "self_dir", desc="Send invalidation to requestor (self-inv)") {
+    peek(requestQueue_in, RequestMsg) {
+        enqueue(forwardNetwork_out, RequestMsg, 1) {
+          out_msg.addr := address;
+          out_msg.Type := CoherenceRequestType:SELF_INV;
+          out_msg.Requestor := machineID;
+          out_msg.RequestorMachine := MachineType:Directory;
+          //out_msg.Destination := getDirectoryEntry(in_msg.addr).Sharers;
+          out_msg.Destination.add(in_msg.Requestor);
+          //out_msg.Destination.addNetDest(getDirectoryEntry(in_msg.addr).Sharers);
+          //out_msg.Destination.remove(in_msg.Requestor);
+          out_msg.MessageSize := MessageSizeType:Invalidate_Control;
+        }
+      
     }
   }
 
@@ -862,6 +896,16 @@ machine(MachineType:Directory, "Directory protocol")
   transition(O, GETX, MM) {
     f_forwardRequest;
     g_sendInvalidations;
+    i_popIncomingRequestQueue;
+  }
+
+  //Nicole: test
+  // if self is dirty, then getting rid of owner
+  // stay in same state and let writeback work itself out?
+
+  transition({O,MM,M,IS,S,SS,MM_M, MIS}, {SELF_INV_CLEAN,SELF_INV_DIRTY}) {
+    //f_forwardRequest;
+    send_requestor_inv;
     i_popIncomingRequestQueue;
   }
 

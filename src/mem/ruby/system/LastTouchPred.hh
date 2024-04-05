@@ -76,7 +76,25 @@ class LastTouchPred: public SimObject
     public:
         typedef LastTouchPredParams Params;
         LastTouchPred(const Params &p);
-        int test;
+        std::vector<std::vector<int>> current_sig_table;
+        std::vector<std::vector<std::vector<int>>> LTP_sig_table;//(100,-1);
+
+        void update_table_size(int num_blocks);
+        int get_sig_table_size();
+        int get_LTP_sig_table_size();
+
+        //sig table add and get
+        void add_new_sig_table(Addr block_tag, PacketPtr pkt);
+        int check_self_invalidation(Addr block_tag); //caller should be L1
+        //int get_sig_table_value(int block_index);
+
+        //LTP sig table add and get
+        //caller should be L2 on L2 block invalidation
+        void add_new_sig_LTP_table(Addr block_tag);
+        //int get_sig_LTP_table_value(int block_index);
+
+        int check_for_LTP_match(int value, Addr block_tag);
+
  //public:
     //typedef MessageBufferParams Params;
     //LTP(const Params &p);

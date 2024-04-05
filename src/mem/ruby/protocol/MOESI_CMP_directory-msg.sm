@@ -57,6 +57,9 @@ enumeration(CoherenceRequestType, desc="...") {
   WRITEBACK_DIRTY_DATA,   desc="Dirty writeback (contains data)";
   DMA_READ,  desc="DMA Read";
   DMA_WRITE, desc="DMA Write";
+  SELF_INV_DIRTY,  desc="LTP activated the DIRTY block to be self_invalidated";
+  SELF_INV_CLEAN,  desc="LTP activated the CLEAN block to be self_invalidated";
+  SELF_INV,        desc="same as Inv but Inv triggered from LTP";
 }
 
 // CoherenceResponseType

@@ -61,8 +61,10 @@ def create_system(options, full_system, system, dma_ports, bootmem,
     # controller constructors are called before the network constructor
     #
     block_size_bits = int(math.log(options.cacheline_size, 2))
-
+    LTP_array = [0 for x in range(options.num_cpus)]
     for i in range(options.num_cpus):
+        LTP = LastTouchPred()
+        LTP_array[i] = LTP
         #
         # First create the Ruby objects associated with this cpu
         # Only one cache exists for this protocol, so by default use the L1D
@@ -91,17 +93,44 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         # Add controllers and sequencers to the appropriate lists
         cpu_sequencers.append(cpu_seq)
         l1_cntrl_nodes.append(l1_cntrl)
-
+        l1_cntrl.LTP = LTP_array[i]
         # Connect the L1 controllers and the network
+
+        #l1_cntrl.mandatoryQueue = MessageBuffer()
+        #l1_cntrl.requestFromCache = MessageBuffer(ordered = True)
+        #l1_cntrl.requestFromCache.out_port = ruby_system.network.in_port
+        #l1_cntrl.responseFromCache = MessageBuffer(ordered = True)
+        # l1_cntrl.responseFromCache.out_port = ruby_system.network.in_port
+        # l1_cntrl.forwardToCache = MessageBuffer(ordered = True)
+        # l1_cntrl.forwardToCache.in_port = ruby_system.network.out_port
+        # l1_cntrl.responseToCache = MessageBuffer(ordered = True)
+        # l1_cntrl.responseToCache.in_port = ruby_system.network.out_port
+        #l1_cntrl.requestFromCache = MessageBuffer(ordered = True)
+        #l1_cntrl.requestFromCache.in_port = ruby_system.network.out_port
+        #l1_cntrl.responseFromCache = MessageBuffer(ordered = True)
+        #l1_cntrl.responseFromCache.in_port = ruby_system.network.out_port
+
+        #self.responseToCache = MessageBuffer(ordered = True)
+        #self.responseToCache.out_port = ruby_system.network.in_port
+        #self.forwardToCache = MessageBuffer(ordered = True)
+        #self.forwardToCache.out_port = ruby_system.network.in_port
+        # All message buffers must be created and connected to the
+        # general Ruby network. In this case, "in_port/out_port" don't
+        # mean the same thing as normal gem5 ports. If a MessageBuffer
+        # is a "to" buffer (i.e., out) then you use the "out_port",
+        # otherwise, the in_port.
         l1_cntrl.mandatoryQueue = MessageBuffer()
-        l1_cntrl.requestFromCache = MessageBuffer(ordered = True)
-        l1_cntrl.requestFromCache.out_port = ruby_system.network.in_port
-        l1_cntrl.responseFromCache = MessageBuffer(ordered = True)
-        l1_cntrl.responseFromCache.out_port = ruby_system.network.in_port
-        l1_cntrl.forwardToCache = MessageBuffer(ordered = True)
-        l1_cntrl.forwardToCache.in_port = ruby_system.network.out_port
-        l1_cntrl.responseToCache = MessageBuffer(ordered = True)
-        l1_cntrl.responseToCache.in_port = ruby_system.network.out_port
+        #l1_cntrl.L1Cache_out_in = MessageBuffer()
+        #l1_cntrl.L1Cache_out_in.in_port = L1Cache_out_in.out_port
+
+        l1_cntrl.requestToDir = MessageBuffer(ordered = True)
+        l1_cntrl.requestToDir.out_port = ruby_system.network.in_port
+        l1_cntrl.responseToDirOrSibling = MessageBuffer(ordered = True)
+        l1_cntrl.responseToDirOrSibling.out_port = ruby_system.network.in_port
+        l1_cntrl.forwardFromDir = MessageBuffer(ordered = True)
+        l1_cntrl.forwardFromDir.in_port = ruby_system.network.out_port
+        l1_cntrl.responseFromDirOrSibling = MessageBuffer(ordered = True)
+        l1_cntrl.responseFromDirOrSibling.in_port=ruby_system.network.out_port
 
     phys_mem_size = sum([r.size() for r in system.mem_ranges])
     assert(phys_mem_size % options.num_dirs == 0)
@@ -121,20 +150,29 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         dir_cntrl_nodes.append(rom_dir_cntrl_node)
     for dir_cntrl in dir_cntrl_nodes:
         # Connect the directory controllers and the network
-        dir_cntrl.requestToDir = MessageBuffer(ordered = True)
-        dir_cntrl.requestToDir.in_port = ruby_system.network.out_port
-        dir_cntrl.dmaRequestToDir = MessageBuffer(ordered = True)
-        dir_cntrl.dmaRequestToDir.in_port = ruby_system.network.out_port
+        #dir_cntrl.requestToDir = MessageBuffer(ordered = True)
+        #dir_cntrl.requestToDir.in_port = ruby_system.network.out_port
+        #dir_cntrl.dmaRequestToDir = MessageBuffer(ordered = True)
+        #dir_cntrl.dmaRequestToDir.in_port = ruby_system.network.out_port
 
-        dir_cntrl.responseFromDir = MessageBuffer()
-        dir_cntrl.responseFromDir.out_port = ruby_system.network.in_port
-        dir_cntrl.dmaResponseFromDir = MessageBuffer(ordered = True)
-        dir_cntrl.dmaResponseFromDir.out_port = ruby_system.network.in_port
-        dir_cntrl.forwardFromDir = MessageBuffer()
-        dir_cntrl.forwardFromDir.out_port = ruby_system.network.in_port
+        #dir_cntrl.responseFromDir = MessageBuffer()
+        #dir_cntrl.responseFromDir.out_port = ruby_system.network.in_port
+        #dir_cntrl.dmaResponseFromDir = MessageBuffer(ordered = True)
+        #dir_cntrl.dmaResponseFromDir.out_port = ruby_system.network.in_port
+        #dir_cntrl.forwardFromDir = MessageBuffer()
+        #dir_cntrl.forwardFromDir.out_port = ruby_system.network.in_port
         dir_cntrl.requestToMemory = MessageBuffer()
         dir_cntrl.responseFromMemory = MessageBuffer()
 
+        #NIcole added below
+        dir_cntrl.forwardToCache = MessageBuffer(ordered = True)
+        dir_cntrl.forwardToCache.out_port = ruby_system.network.in_port
+        dir_cntrl.requestFromCache = MessageBuffer(ordered = True)
+        dir_cntrl.requestFromCache.in_port = ruby_system.network.out_port
+        dir_cntrl.responseFromCache = MessageBuffer(ordered = True)
+        dir_cntrl.responseFromCache.in_port = ruby_system.network.out_port
+        dir_cntrl.responseToCache = MessageBuffer(ordered = True)
+        dir_cntrl.responseToCache.out_port = ruby_system.network.in_port
 
     for i, dma_port in enumerate(dma_ports):
         #

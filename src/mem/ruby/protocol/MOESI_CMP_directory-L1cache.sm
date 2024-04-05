@@ -56,6 +56,7 @@ machine(MachineType:L1Cache, "L1 cache protocol")
    // a local L1 -> this L2 bank
    MessageBuffer * responseFromL1Cache, network="To", virtual_network="2",
         vnet_type="response";
+   MessageBuffer * GlobalRequestFromL1Cache, network="To", virtual_network="1",vnet_type="request";
 
    // To this node's L1 cache FROM the network
    // a L2 bank -> this L1
@@ -105,6 +106,9 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     Fwd_GETS,      desc="A GetS from another processor";
     Fwd_DMA,      desc="A GetS from another processor";
     Inv,           desc="Invalidations from the directory";
+    SELF_INV_CLEAN, desc="self_invalidation";
+    SELF_INV_DIRTY, desc="self_invalidation";
+    SELF_INV,       desc="directory tells cache to invalidate";
 
     // Responses
     Ack,             desc="Received an ack message";
@@ -131,6 +135,11 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     DataBlock DataBlk,       desc="data for the block";
   }
 
+
+
+    
+
+
   // TBE fields
   structure(TBE, desc="...") {
     Addr addr,         desc="Physical address for this TBE";
@@ -147,6 +156,7 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     bool isPresent(Addr);
   }
 
+
   Tick clockEdge();
   Tick cyclesToTicks(Cycles c);
   void set_cache_entry(AbstractCacheEntry b);
@@ -160,6 +170,9 @@ machine(MachineType:L1Cache, "L1 cache protocol")
 
   Entry getCacheEntry(Addr addr), return_by_pointer="yes" {
     Entry L1Dcache_entry := static_cast(Entry, "pointer", L1Dcache.lookup(addr));
+    //LTP.update_table_size(2);
+    //int curr_sig_table_size := LTP.get_sig_table_size();
+    //assert(curr_sig_table_size == 2);
     if(is_valid(L1Dcache_entry)) {
       return L1Dcache_entry;
     }
@@ -202,6 +215,8 @@ machine(MachineType:L1Cache, "L1 cache protocol")
       return response_latency;
     }
   }
+
+
 
   void setState(TBE tbe, Entry cache_entry, Addr addr, State state) {
     assert((L1Dcache.isTagPresent(addr) && L1Icache.isTagPresent(addr)) == false);
@@ -263,7 +278,6 @@ machine(MachineType:L1Cache, "L1 cache protocol")
 
   int functionalWrite(Addr addr, Packet *pkt) {
     int num_functional_writes := 0;
-
     Entry cache_entry := getCacheEntry(addr);
     if(is_valid(cache_entry)) {
       num_functional_writes := num_functional_writes +
@@ -296,6 +310,7 @@ machine(MachineType:L1Cache, "L1 cache protocol")
   out_port(requestNetwork_out, RequestMsg, requestFromL1Cache);
   out_port(responseNetwork_out, ResponseMsg, responseFromL1Cache);
   out_port(triggerQueue_out, TriggerMsg, triggerQueue);
+  out_port(globalRequestNetwork_out, RequestMsg, GlobalRequestFromL1Cache);
 
   // ** IN_PORTS **
 
@@ -374,9 +389,14 @@ machine(MachineType:L1Cache, "L1 cache protocol")
           trigger(Event:Fwd_DMA, in_msg.addr,
                   getCacheEntry(in_msg.addr), TBEs[in_msg.addr]);
         } else if (in_msg.Type == CoherenceRequestType:INV) {
+          //error("L1Cache\n");
           trigger(Event:Inv, in_msg.addr,
                   getCacheEntry(in_msg.addr), TBEs[in_msg.addr]);
-        } else {
+        } else if(in_msg.Type == CoherenceRequestType:SELF_INV){
+          trigger(Event:Inv, in_msg.addr,
+                  getCacheEntry(in_msg.addr), TBEs[in_msg.addr]);
+        }
+        else {
           error("Unexpected message");
         }
       }
@@ -385,6 +405,7 @@ machine(MachineType:L1Cache, "L1 cache protocol")
 
   // Mandatory Queue betweens Node's CPU and it's L1 caches
   in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, rank=0) {
+    
     if (mandatoryQueue_in.isReady(clockEdge())) {
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
 
@@ -425,8 +446,10 @@ machine(MachineType:L1Cache, "L1 cache protocol")
             }
           }
         } else {
+          //Nicole: only data access?
           // *** DATA ACCESS ***
-
+          //do curr table add
+          LTP.add_new_sig_table(in_msg.LineAddress, in_msg.pkt);
           Entry L1Dcache_entry := getL1DCacheEntry(in_msg.LineAddress);
           if (is_valid(L1Dcache_entry)) {
             // The tag matches for the L1, so the L1 ask the L2 for it
@@ -465,6 +488,16 @@ machine(MachineType:L1Cache, "L1 cache protocol")
 
 
   // ACTIONS
+
+  //LTP new ACTIONS
+  action(add_new_LTP_trace, "self", desc="block was invalidated, so capture current trace and turn to LT trace") {
+    LTP.add_new_sig_LTP_table(address);
+  
+  }
+    action(do_nothing, "nothing", desc="self_invalidation transition output") {
+    //LTP.add_new_sig_LTP_table(address);
+  
+  }
 
   action(a_issueGETS, "a", desc="Issue GETS") {
     peek(mandatoryQueue_in, RubyRequest) {
@@ -663,6 +696,29 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
     L1Dcache.setMRU(cache_entry);
     sequencer.readCallback(address, cache_entry.DataBlk);
+    // call add curr table with address as tag and PC from packet
+    int self_invalidate := LTP.check_self_invalidation(address);
+    
+    if(self_invalidate == 1){
+      //send self message to directory
+      //assert(0 == 1);
+      
+      enqueue(globalRequestNetwork_out, RequestMsg, 1) {
+        assert(is_valid(cache_entry));
+        out_msg.addr := address;
+        out_msg.Requestor := machineID;
+        out_msg.RequestorMachine := MachineType:L2Cache;
+        out_msg.Destination.add(mapAddressToMachine(address,
+                                                    MachineType:Directory));
+        if (cache_entry.Dirty) {
+          out_msg.Type := CoherenceRequestType:SELF_INV_DIRTY;
+        } else {
+          out_msg.Type := CoherenceRequestType:SELF_INV_CLEAN;
+        }
+        out_msg.DataBlk := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:Request_Control;
+      }
+    }
   }
 
   action(h_ifetch_hit, "hi", desc="Notify the sequencer about ifetch completion.") {
@@ -670,6 +726,7 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     DPRINTF(RubySlicc, "%s\n", cache_entry.DataBlk);
     L1Icache.setMRU(cache_entry);
     sequencer.readCallback(address, cache_entry.DataBlk);
+
   }
 
   action(hx_load_hit, "hx", desc="Notify sequencer the load completed.") {
@@ -678,6 +735,29 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     L1Icache.setMRU(address);
     L1Dcache.setMRU(address);
     sequencer.readCallback(address, cache_entry.DataBlk, true);
+    //TODO call add curr table with address as tag and PC from packet
+    int self_invalidate := LTP.check_self_invalidation(address);
+
+    if(self_invalidate == 1){
+      //send message to L2
+      //assert(0 == 1);
+      
+      enqueue(globalRequestNetwork_out, RequestMsg, 1) {
+        assert(is_valid(cache_entry));
+        out_msg.addr := address;
+        out_msg.Requestor := machineID;
+        out_msg.RequestorMachine := MachineType:L1Cache;
+        out_msg.Destination.add(mapAddressToMachine(address,
+                                                    MachineType:Directory));
+        if (cache_entry.Dirty) {
+          out_msg.Type := CoherenceRequestType:SELF_INV_DIRTY;
+        } else {
+          out_msg.Type := CoherenceRequestType:SELF_INV_CLEAN;
+        }
+        out_msg.DataBlk := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:Request_Control;
+      }
+    }
   }
 
   action(hh_store_hit, "\h", desc="Notify sequencer that store completed.") {
@@ -686,6 +766,29 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     L1Dcache.setMRU(cache_entry);
     sequencer.writeCallback(address, cache_entry.DataBlk);
     cache_entry.Dirty := true;
+    //TODO call add curr table with address as tag and PC from packet
+    int self_invalidate := LTP.check_self_invalidation(address);
+
+    if(self_invalidate == 1){
+      //send  to L2
+      //assert(0 == 1);
+      
+      enqueue(globalRequestNetwork_out, RequestMsg, 1) {
+        assert(is_valid(cache_entry));
+        out_msg.addr := address;
+        out_msg.Requestor := machineID;
+        out_msg.RequestorMachine := MachineType:L1Cache;
+        out_msg.Destination.add(mapAddressToMachine(address,
+                                                    MachineType:Directory));
+        if (cache_entry.Dirty) {
+          out_msg.Type := CoherenceRequestType:SELF_INV_DIRTY;
+        } else {
+          out_msg.Type := CoherenceRequestType:SELF_INV_CLEAN;
+        }
+        out_msg.DataBlk := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:Request_Control;
+      }
+    }
   }
 
   action(xx_store_hit, "\xx", desc="Notify sequencer that store completed.") {
@@ -695,6 +798,29 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     L1Dcache.setMRU(address);
     sequencer.writeCallback(address, cache_entry.DataBlk, true);
     cache_entry.Dirty := true;
+    //TODO call add curr table with address as tag and PC from packet
+    int self_invalidate := LTP.check_self_invalidation(address);
+
+    if(self_invalidate == 1){
+      //send  to L2
+      //assert(0 == 1);
+      //DPRINTF("current machine ID = %d\n",machineID);
+      enqueue(globalRequestNetwork_out, RequestMsg, 1) {
+        assert(is_valid(cache_entry));
+        out_msg.addr := address;
+        out_msg.Requestor := machineID;
+        out_msg.RequestorMachine := MachineType:L1Cache;
+        out_msg.Destination.add(mapAddressToMachine(address,
+                                                    MachineType:Directory));
+        if (cache_entry.Dirty) {
+          out_msg.Type := CoherenceRequestType:SELF_INV_DIRTY;
+        } else {
+          out_msg.Type := CoherenceRequestType:SELF_INV_CLEAN;
+        }
+        out_msg.DataBlk := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:Request_Control;
+      }
+    }
   }
 
   action(i_allocateTBE, "i", desc="Allocate TBE") {
@@ -944,7 +1070,17 @@ machine(MachineType:L1Cache, "L1 cache protocol")
 
   transition({M_W, MM_W}, {Fwd_GETS, Fwd_DMA, Fwd_GETX, Own_GETX, Inv}) {
     z_recycleRequestQueue;
+    add_new_LTP_trace;
+    
   }
+  //TODO figure out if recycle is ok?
+  /*
+  transition({M_W, MM_W}, {SELF_INV_CLEAN,SELF_INV_DIRTY}) {
+    //z_recycleRequestQueue;
+    //add_new_LTP_trace;
+    do_nothing;
+    
+  }*/
 
   transition({IM, IS, OI, MI, SI, II}, {Load, Ifetch}) {
     zz_recycleMandatoryQueue;
@@ -982,7 +1118,14 @@ machine(MachineType:L1Cache, "L1 cache protocol")
   transition(I, Inv) {
     f_sendAck;
     l_popForwardQueue;
+    //add_new_LTP_trace;
   }
+
+/*
+  transition(I, {SELF_INV_CLEAN,SELF_INV_DIRTY}) {
+    do_nothing;
+  }
+*/
 
   transition({S, SM, O, OM, MM, MM_W, M, M_W}, Load) {
     h_load_hit;
@@ -1015,7 +1158,17 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     f_sendAck;
     forward_eviction_to_cpu;
     l_popForwardQueue;
+    add_new_LTP_trace;
   }
+
+  //Nicole: try this action?
+  /*
+  transition(S, {SELF_INV_CLEAN,SELF_INV_DIRTY}, I) {
+   // f_sendAck;
+    //forward_eviction_to_cpu;
+    l_popForwardQueue;
+    //add_new_LTP_trace;
+  }*/
 
   transition(S, Fwd_GETS) {
     e_sendData;
@@ -1135,7 +1288,15 @@ machine(MachineType:L1Cache, "L1 cache protocol")
   transition(IM, Inv) {
     f_sendAck;
     l_popForwardQueue;
+    add_new_LTP_trace;
   }
+
+  /*
+  transition(IM, {SELF_INV_CLEAN,SELF_INV_DIRTY}) {
+    //f_sendAck;
+    l_popForwardQueue;
+    //add_new_LTP_trace;
+  }*/
 
   transition(IM, Ack) {
     m_decrementNumberOfMessages;
@@ -1155,7 +1316,16 @@ machine(MachineType:L1Cache, "L1 cache protocol")
     f_sendAck;
     forward_eviction_to_cpu;
     l_popForwardQueue;
+    add_new_LTP_trace;
   }
+
+  /*
+  transition(SM, {SELF_INV_CLEAN,SELF_INV_DIRTY}, IM) {
+    //f_sendAck;
+    //forward_eviction_to_cpu;
+    l_popForwardQueue;
+    //add_new_LTP_trace;
+  }*/
 
   transition(SM, Ack) {
     m_decrementNumberOfMessages;
@@ -1231,7 +1401,15 @@ machine(MachineType:L1Cache, "L1 cache protocol")
   transition(IS, Inv) {
     f_sendAck;
     l_popForwardQueue;
+    add_new_LTP_trace;
   }
+
+  /*
+  transition(IS, {SELF_INV_CLEAN,SELF_INV_DIRTY}) {
+    //f_sendAck;
+    l_popForwardQueue;
+    //add_new_LTP_trace;
+  }*/
 
   transition(IS, Data, S) {
     u_writeDataToCache;
@@ -1330,10 +1508,26 @@ machine(MachineType:L1Cache, "L1 cache protocol")
   transition(II, Inv) {
     f_sendAck;
     l_popForwardQueue;
+    //add_new_LTP_trace; //TODO think about this transition
   }
+
+  /*
+  transition(II, {SELF_INV_CLEAN,SELF_INV_DIRTY}) {
+    //f_sendAck;
+    l_popForwardQueue;
+    //add_new_LTP_trace; //TODO think about this transition
+  }*/
 
   transition(SI, Inv, II) {
     f_sendAck;
     l_popForwardQueue;
+    add_new_LTP_trace;
   }
+
+  /*
+  transition(SI, {SELF_INV_CLEAN,SELF_INV_DIRTY}, II) {
+    //f_sendAck;
+    l_popForwardQueue;
+    //add_new_LTP_trace;
+  }*/
 }

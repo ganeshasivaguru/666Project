@@ -60,22 +60,177 @@ namespace ruby
 LastTouchPred::LastTouchPred(const Params &p)
     :SimObject(p)
 {
-    test = 0;
-    //m_msg_counter = 0;
-    //tables declared in header file
+    //current_sig_table.resize(100, -1);
+    //LTP_sig_table.resize(100, std::vector<int>(5));
+    //current_sig_table(100,-1);
+    //LTP_sig_table(100,-1);
 };
-/*
-unsigned int
-MessageBuffer::getSize(Tick curTime)
-{
-    if (m_time_last_time_size_checked != curTime) {
-        m_time_last_time_size_checked = curTime;
-        m_size_last_time_size_checked = m_prio_heap.size();
+
+void
+LastTouchPred::update_table_size(int num_blocks){
+    //current_sig_table.resize(num_blocks, -1);
+    //LTP_sig_table.resize(num_blocks, std::vector<int>(0));
+
+    return;
+}
+
+
+int
+LastTouchPred::get_sig_table_size(){
+    return current_sig_table.size();
+}
+
+int
+LastTouchPred::get_LTP_sig_table_size(){
+    return LTP_sig_table.size();
+}
+
+void
+LastTouchPred::add_new_sig_table(Addr block_tag,Packet* pkt){
+
+    //inform("\n TESTSSS ADD\n");
+    //return value is whether to self invalidate or not
+    int pc = pkt->req->getPC();
+    int value = pc & 0x1FFF;//13 bit truncated addition encoding
+    int LT_match = 0;
+    int self_invalidate = 0;
+    int found_block = 0;
+    std::vector<int> new_vect{block_tag, value}; //  signature encoding
+    for (int i = 0; i <current_sig_table.size(); i++){
+        if (current_sig_table[i][0] == block_tag){
+            //inform("\nfound tag = %x\n", block_tag);
+            found_block = 1;
+            //block already has running trace so add the value
+            // but first check if the new value is the LT
+            //LT_match = check_for_LTP_match(value, block_tag);
+            /*if (LT_match){
+
+                self_invalidate = 1;
+            }*/
+            //else
+                current_sig_table[i][1] = value + current_sig_table[i][1];
+        }
+    }
+    if (!found_block)
+        current_sig_table.push_back(new_vect);
+    return;// self_invalidate;
+
+}
+
+int
+LastTouchPred::check_self_invalidation(Addr block_tag){
+    //int test = current_sig_table.size()
+    //inform("\n CHECK SELF TESTSSS \n");
+    //get current trace value
+    int found_block = 0;
+    //int self_invalidate = 0
+    int LT_match = 0;
+    for (int i = 0; i <current_sig_table.size(); i++){
+        //inform("iterating, block_tag = %x\n",block_tag);
+        if (current_sig_table[i][0] == block_tag){
+            //compare
+            //inform("in array, block_tag = %x\n",block_tag);
+            LT_match = check_for_LTP_match(current_sig_table[i][1], block_tag);
+            if (LT_match){
+                current_sig_table[i][1] = 0;
+            }
+        }
+
+    }
+    //if (block_tag == 0x400){
+        //LT_match = 1;
+    //}
+
+    //inform("match = %d\n",LT_match);
+    if (LT_match){
+    inform("address %x matched for LT and to be self invalidated\n",block_tag);
     }
 
-    return m_size_last_time_size_checked;
+    return LT_match;
+
+}
+
+void
+LastTouchPred::add_new_sig_LTP_table(Addr block_tag){
+    //inform("\n NEW LTP for block = %x\n",block_tag);
+    int value = 0;
+    int curr_found_block = 0;
+    //search for trace signature
+    for (int i = 0; i <current_sig_table.size(); i++){
+        if (current_sig_table[i][0] == block_tag){
+            //capture the current trace and make it into LT value
+            value = current_sig_table[i][1];
+            //reset trace addition to 0
+            current_sig_table[i][1] = 0;
+            curr_found_block = 1;
+        }
+    }
+    //inform("searched current\n");
+    if (curr_found_block){
+        //iterates through table to see if block tag is present
+        if (value != 0){
+            //inform("value!=0\n");
+            std::vector<int> new_vect{block_tag, value};
+            int found_block = 0;
+            //inform("before size\n");
+            //inform("size = %d\n",LTP_sig_table.size());
+
+            for (int x = 0; x <LTP_sig_table.size(); x++){
+                //inform("in for\n");
+                if (LTP_sig_table[x][0][0] == block_tag){
+                    // already a LT trace so add new value
+                    LTP_sig_table[x].push_back(new_vect);
+                    found_block = 1;
+                }
+            }
+            if (found_block == 0){
+                //inform("did not find\n");
+                //did not find block tag in table so add to table
+                std::vector<std::vector<int>> add_vect;
+                add_vect.push_back(new_vect);
+                LTP_sig_table.push_back(add_vect);
+            }
+        }
+    }
+
+    //inform("done\n");
+    return;
+
+}
+/*
+int
+LastTouchPred::get_sig_table_value(int block_index){
+
+    return current_sig_table[block_index];
+}*/
+/*
+int
+LastTouchPred::get_sig_LTP_table_value(int block_index){
+
+    return LTP_sig_table[block_index][0];
 }*/
 
+int
+LastTouchPred::check_for_LTP_match(int value, Addr block_tag){
+    int LT_match = 0;
+    //called on a new ld, st added to table
+    //on add, if there is a LTP match, 1 is
+    // returned and the caller knows to self-invalidate
+    for (int i = 0; i < LTP_sig_table.size(); i++){
+        if (LTP_sig_table[i].size() != 0){
+            //there is one LT for this block
+            //check block tag in index 0
+            if (LTP_sig_table[i][0][0] == block_tag ){
+                //this index is for the target block, so check signature/value
+                if (LTP_sig_table[i][0][1] == value){
+                    LT_match = 1;
+                }
+            }
+        }
+    }
+
+    return LT_match;
+}
 
 
 } // namespace ruby

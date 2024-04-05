@@ -167,6 +167,7 @@ machine(MachineType:L2Cache, "Token protocol")
     Fwd_DMA,      desc="A request from DMA";
     Own_GETX,      desc="A GetX from this node";
     Inv,           desc="Invalidations from the directory";
+    Self_Inv,     desc="self invalidation";
 
     // Responses
     IntAck,             desc="Received an ack message";
@@ -187,7 +188,13 @@ machine(MachineType:L2Cache, "Token protocol")
     // events initiated by this L2
     L2_Replacement,     desc="L2 Replacement", format="!r";
 
+    SELF_INV_CLEAN,   desc="self_invalidation from L1";
+    SELF_INV_DIRTY,   desc="self_invalidation from L1";
+    SELF_INV,         desc="directory tells cache to invalidate";
+
   }
+
+
 
   // TYPES
 
@@ -254,7 +261,12 @@ machine(MachineType:L2Cache, "Token protocol")
   MachineID mapAddressToMachine(Addr addr, MachineType mtype);
   void wakeUpAllBuffers(Addr a);
 
+
+  //set LTP vctor size here with cache get method for number of blocks or tag
+  //Cycles num_blocks := L2cache.getTagLatency();
+
   // Latency for responses that fetch data from cache
+
   Cycles cacheResponseLatency() {
     if (L2cache.getTagLatency() > response_latency) {
       return L2cache.getTagLatency();
@@ -319,6 +331,8 @@ machine(MachineType:L2Cache, "Token protocol")
   }
 
   void copyCacheStateToDir(Entry cache_entry, Addr addr) {
+    
+    //assert(LTP.get_LTP_sig_table_size() != 2);
     assert(localDirectory.isTagPresent(addr) == false);
     assert(is_valid(cache_entry));
     localDirectory.allocate(addr);
@@ -667,7 +681,9 @@ machine(MachineType:L2Cache, "Token protocol")
         } else if (in_msg.Type == CoherenceResponseType:DMA_ACK) {
           trigger(Event:DmaAck, in_msg.addr,
                   getCacheEntry(in_msg.addr), TBEs[in_msg.addr]);
-        } else {
+        } 
+        
+          else {
           error("Unexpected message");
         }
       }
@@ -693,10 +709,18 @@ machine(MachineType:L2Cache, "Token protocol")
         } else if(in_msg.Type == CoherenceRequestType:DMA_READ) {
           trigger(Event:Fwd_DMA, in_msg.addr,
                   getCacheEntry(in_msg.addr), TBEs[in_msg.addr]);
-        } else if (in_msg.Type == CoherenceRequestType:INV) {
+        } else if ((in_msg.Type == CoherenceRequestType:INV)) {
+          //if(in_msg.RequestorMachine == MachineType:Directory){
+            //error("L2 received INV from dir\n");
+          //}
           trigger(Event:Inv, in_msg.addr,
                   getCacheEntry(in_msg.addr), TBEs[in_msg.addr]);
-        } else {
+        }    
+        else if(in_msg.Type == CoherenceRequestType:SELF_INV){
+          trigger(Event:Self_Inv, in_msg.addr,
+                  getCacheEntry(in_msg.addr), TBEs[in_msg.addr]);
+        }    
+        else {
           error("Unexpected message");
         }
       }
@@ -725,6 +749,7 @@ machine(MachineType:L2Cache, "Token protocol")
             trigger(Event:L1_PUTS_only, in_msg.addr,
                     cache_entry, TBEs[in_msg.addr]);
           }
+          
           else {
             trigger(Event:L1_PUTS, in_msg.addr,
                     cache_entry, TBEs[in_msg.addr]);
@@ -741,7 +766,8 @@ machine(MachineType:L2Cache, "Token protocol")
             trigger(Event:L1_WBDIRTYDATA, in_msg.addr,
                     cache_entry, TBEs[in_msg.addr]);
           }
-        } else if (in_msg.Type == CoherenceRequestType:WRITEBACK_CLEAN_DATA) {
+        } 
+        else if (in_msg.Type == CoherenceRequestType:WRITEBACK_CLEAN_DATA) {
           Entry cache_entry := getCacheEntry(in_msg.addr);
           if (is_invalid(cache_entry) &&
                    L2cache.cacheAvail(in_msg.addr) == false) {
@@ -753,7 +779,9 @@ machine(MachineType:L2Cache, "Token protocol")
             trigger(Event:L1_WBCLEANDATA, in_msg.addr,
                     cache_entry, TBEs[in_msg.addr]);
           }
-        } else {
+        }
+        
+        else {
           error("Unexpected message");
         }
       }
@@ -763,6 +791,16 @@ machine(MachineType:L2Cache, "Token protocol")
 
   // ACTIONS
 
+  action(self_invalidate_L2, "self_inv", desc="invalidate L2 now") {
+    enqueue(globalRequestNetwork_out, RequestMsg, request_latency) {
+        out_msg.addr := address;
+        out_msg.Type := CoherenceRequestType:INV;
+        out_msg.RequestorMachine := MachineType:L2Cache;
+        out_msg.Requestor := machineID;
+        out_msg.Destination.add(mapAddressToMachine(address, MachineType:L2Cache));
+        out_msg.MessageSize := MessageSizeType:Request_Control;
+    }
+  }
   action(a_issueGETS, "a", desc="issue local request globally") {
     peek(L1requestNetwork_in, RequestMsg) {
       enqueue(globalRequestNetwork_out, RequestMsg, request_latency) {
@@ -1648,7 +1686,7 @@ machine(MachineType:L2Cache, "Token protocol")
     zz_recycleGlobalRequestQueue;
   }
 
-  transition({IFGX, IFGS, ISFGS, IFGXX, IFGXXD, IFLXO, ILOW, ILOXW, ILOSW, ILOSXW, SLSW, OLSW, ILSW, IW, OW, SW, OXW, OLSXW, ILXW, IFLS, IFLO, IFLOX, IFLOXX, IFLOSX,OLSXS, MM, SS, OO, SLSS, OLSS, OLSF, IGMIOFS, ILOSD, ILOSXD, ILOD, ILXD, ILOXD}, {Inv}) {
+  transition({IFGX, IFGS, ISFGS, IFGXX, IFGXXD, IFLXO, ILOW, ILOXW, ILOSW, ILOSXW, SLSW, OLSW, ILSW, IW, OW, SW, OXW, OLSXW, ILXW, IFLS, IFLO, IFLOX, IFLOXX, IFLOSX,OLSXS, MM, SS, OO, SLSS, OLSS, OLSF, IGMIOFS, ILOSD, ILOSXD, ILOD, ILXD, ILOXD}, {Inv,Self_Inv}) {
     zz_recycleGlobalRequestQueue;
   }
 
@@ -1936,13 +1974,13 @@ machine(MachineType:L2Cache, "Token protocol")
 
   // INVALIDATIONS FROM GLOBAL DIRECTORY
 
-  transition({IGM, IGS}, Inv) {
+  transition({IGM, IGS}, {Inv,Self_Inv}) {
     t_recordFwdXID;
     e_sendAck;
     m_popRequestQueue;
   }
 
-  transition(I, Inv) {
+  transition(I, {Inv,Self_Inv}) {
     i_allocateTBE;
     t_recordFwdXID;
     e_sendAck;
@@ -1952,7 +1990,7 @@ machine(MachineType:L2Cache, "Token protocol")
 
   // NEED INV for S state
 
-  transition({ILS, ILO, ILX}, Inv, II) {
+  transition({ILS, ILO, ILX}, {Inv,Self_Inv}, II) {
     i_allocateTBE;
     t_recordFwdXID;
     ee_sendLocalInv;
@@ -1961,7 +1999,7 @@ machine(MachineType:L2Cache, "Token protocol")
     m_popRequestQueue;
   }
 
-  transition(SLS, Inv, II) {
+  transition(SLS, {Inv,Self_Inv}, II) {
     i_allocateTBE;
     t_recordFwdXID;
     ee_sendLocalInv;
@@ -1982,7 +2020,7 @@ machine(MachineType:L2Cache, "Token protocol")
     wa_wakeUpDependents;
   }
 
-  transition(S, Inv, I) {
+  transition(S, {Inv,Self_Inv}, I) {
     i_allocateTBE;
     t_recordFwdXID;
     e_sendAck;
@@ -2175,7 +2213,7 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
   }
 
-  transition(IGMLS, Inv) {
+  transition(IGMLS, {Inv,Self_Inv}) {
     t_recordFwdXID;
     ee_sendLocalInv;
     m_popRequestQueue;
@@ -2678,6 +2716,9 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
   }
 
+  
+
+
   transition(ILXW, L1_WBDIRTYDATA, M) {
     gg_clearLocalSharers;
     vv_allocateL2CacheBlock;
@@ -2686,6 +2727,10 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
     wa_wakeUpDependents;
   }
+  //Nicole: skips writeback state ILXW
+
+
+  
 
   // clean writeback
   transition(ILXW, L1_WBCLEANDATA, M) {
@@ -2696,6 +2741,8 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
     wa_wakeUpDependents;
   }
+
+
 
   transition(ILXW, Unblock, ILX) {
     // writeback canceled because L1 invalidated
@@ -2712,6 +2759,8 @@ machine(MachineType:L2Cache, "Token protocol")
     wa_wakeUpDependents;
   }
 
+
+
   transition(IW, L1_WBCLEANDATA, S) {
     vv_allocateL2CacheBlock;
     y_copyDirToCacheAndRemove;
@@ -2720,6 +2769,8 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
     wa_wakeUpDependents;
   }
+
+
 
   // Owner can have dirty data
   transition(ILOW, L1_WBDIRTYDATA, O) {
@@ -2731,6 +2782,8 @@ machine(MachineType:L2Cache, "Token protocol")
     wa_wakeUpDependents;
   }
 
+
+
   transition(ILOW, L1_WBCLEANDATA, O) {
     vv_allocateL2CacheBlock;
     y_copyDirToCacheAndRemove;
@@ -2739,6 +2792,8 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
     wa_wakeUpDependents;
   }
+
+
 
   transition(ILOXW, L1_WBDIRTYDATA, M) {
     vv_allocateL2CacheBlock;
@@ -2749,6 +2804,8 @@ machine(MachineType:L2Cache, "Token protocol")
     wa_wakeUpDependents;
   }
 
+
+
   transition(ILOXW, L1_WBCLEANDATA, M) {
     vv_allocateL2CacheBlock;
     y_copyDirToCacheAndRemove;
@@ -2757,6 +2814,7 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
     wa_wakeUpDependents;
   }
+
 
   transition(ILOSW, L1_WBDIRTYDATA, OLS) {
     vv_allocateL2CacheBlock;
@@ -2767,7 +2825,9 @@ machine(MachineType:L2Cache, "Token protocol")
     wa_wakeUpDependents;
   }
 
-  transition(ILOSW, L1_WBCLEANDATA, OLS) {
+
+
+  transition(ILOS, L1_WBCLEANDATA, OLS) {
     vv_allocateL2CacheBlock;
     y_copyDirToCacheAndRemove;
     gg_clearOwnerFromL1Request;
@@ -2775,6 +2835,7 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
     wa_wakeUpDependents;
   }
+
 
   transition(ILOSXW, L1_WBDIRTYDATA, OLSX) {
     vv_allocateL2CacheBlock;
@@ -2785,6 +2846,10 @@ machine(MachineType:L2Cache, "Token protocol")
     wa_wakeUpDependents;
   }
 
+
+
+
+
   transition(ILOSXW, L1_WBCLEANDATA, OLSX) {
     vv_allocateL2CacheBlock;
     y_copyDirToCacheAndRemove;
@@ -2793,6 +2858,8 @@ machine(MachineType:L2Cache, "Token protocol")
     o_popL1RequestQueue;
     wa_wakeUpDependents;
   }
+
+
 
   transition(SLSW, {Unblock}, SLS) {
     gg_clearSharerFromL1Response;
@@ -2851,6 +2918,18 @@ machine(MachineType:L2Cache, "Token protocol")
     b_issuePUTX;
     i_allocateTBE;
     rr_deallocateL2CacheBlock;
+  }
+
+  //Nicole: added this after invalid transition from M for inv after self dirty
+  transition(M, {Inv,Self_Inv}, MI) {
+    b_issuePUTX;
+    i_allocateTBE;
+    rr_deallocateL2CacheBlock; //Nicole: this is added, not sure after assert failure
+  }
+
+  //Nicole: TODO not sure about this - comes from invalid trans MI with Inv
+  transition(MI, {Inv,Self_Inv}) {
+    m_popRequestQueue;
   }
 
   transition(OLSI, Fwd_GETX, ILSI) {
