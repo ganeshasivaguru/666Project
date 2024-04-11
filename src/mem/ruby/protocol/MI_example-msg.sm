@@ -46,6 +46,8 @@ enumeration(CoherenceRequestType, desc="Types of request messages") {
     SELF_INV_DIRTY, desc="self_invalidation";
     SELF_INV_DIR_ACK, desc="directory acked self inv";
     Self_Inv,       desc="cache request to self";
+    SELF_INV_RIGHT_PREDICT, desc="self inv was correct";
+    SELF_INV_WRONG_PREDICT, desc="self inv predict was wrong";
     
     
 

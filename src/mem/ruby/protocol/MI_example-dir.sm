@@ -114,6 +114,8 @@ machine(MachineType:Directory, "Directory protocol")
         SELF_INV_DIRTY, desc="self_invalidation";
 
         SELF_INV_DIR_ACK, desc="directory acked self inv";
+        SELF_INV_WRONG_PREDICT, desc="tell all self invalidators to decrease";
+        SELF_INV_RIGHT_PREDICT, desc="prediction was right so strengthen";
         //SELF_INV_DIR_ACK_DIRTY, desc="directory acked self inv";
         Self_Inv_Only_Sharer, desc="self inv clean and only sharer";
         Self_Inv, desc="self inv clean ";
@@ -140,6 +142,7 @@ machine(MachineType:Directory, "Directory protocol")
         State DirState,         desc="Directory state";
         NetDest Sharers,        desc="Sharers for this block";
         NetDest Owner,          desc="Owner of this block";
+        NetDest Self_Invalidators,  desc="processors that have self invalidated this block";
     }
 
     Tick clockEdge();
@@ -317,10 +320,34 @@ machine(MachineType:Directory, "Directory protocol")
     // Memory actions.
 
     action(sendMemRead, "r", desc="Send a memory read request") {
+        
         peek(request_in, RequestMsg) {
             // Send request through special memory request queue. At some
             // point the response will be on the memory response queue.
             // Like enqueue, this takes a latency for the request.
+         if(getDirectoryEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+            //wrong prediction
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getDirectoryEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+         }
+         else if(getDirectoryEntry(address).Self_Invalidators.count() > 0){
+            //right prediction
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination := getDirectoryEntry(address).Self_Invalidators;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getDirectoryEntry(address).Self_Invalidators.clear();
+         }
+            
             enqueue(memQueue_out, MemoryMsg, toMemLatency) {
                 out_msg.addr := address;
                 out_msg.Type := MemoryRequestType:MEMORY_READ;
@@ -387,6 +414,12 @@ machine(MachineType:Directory, "Directory protocol")
         }
     }
 
+    action(addReqToInvalidators, "add_inv", desc="add requestor to invalidators") {
+        peek(request_in, RequestMsg) {
+            getDirectoryEntry(address).Self_Invalidators.add(in_msg.Requestor);
+        }
+    }
+
     action(clearSharers, "cS", desc="Clear the sharer list") {
         getDirectoryEntry(address).Sharers.clear();
     }
@@ -412,6 +445,28 @@ machine(MachineType:Directory, "Directory protocol")
     action(sendFwdGetS, "fS", desc="Send forward getS to owner") {
         assert(getDirectoryEntry(address).Owner.count() == 1);
         peek(request_in, RequestMsg) {
+            if(getDirectoryEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+            //wrong prediction
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getDirectoryEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+         }/*
+         else if(getDirectoryEntry(address).Self_Invalidators.count() > 0){
+            //right prediction
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination := getDirectoryEntry(address).Self_Invalidators;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getDirectoryEntry(address).Self_Invalidators.clear();
+         }*/
             enqueue(forward_out, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:GetS;
@@ -424,7 +479,30 @@ machine(MachineType:Directory, "Directory protocol")
 
     action(sendFwdGetM, "fM", desc="Send forward getM to owner") {
         assert(getDirectoryEntry(address).Owner.count() == 1);
+        
         peek(request_in, RequestMsg) {
+            if(getDirectoryEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+            //wrong prediction
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getDirectoryEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+         }/*
+         else if(getDirectoryEntry(address).Self_Invalidators.count() > 0){
+            //right prediction
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination := getDirectoryEntry(address).Self_Invalidators;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getDirectoryEntry(address).Self_Invalidators.clear();
+         }*/
             enqueue(forward_out, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:GetM;
@@ -482,6 +560,44 @@ machine(MachineType:Directory, "Directory protocol")
                 out_msg.MessageSize := MessageSizeType:Control;
             }
         }
+    }
+    /*
+    action(sendIncreaseStrength, "self_incr", desc="tell invalidators to strengthen") {
+        peek(request_in, RequestMsg) {
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination := getDirectoryEntry(address).Self_Invalidators;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+        }
+        getDirectoryEntry(address).Self_Invalidators.clear();
+    }
+
+    action(sendDecreaseStrength, "self_decr", desc="tell invalidators to weaken") {
+        peek(request_in, RequestMsg) {
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination := getDirectoryEntry(address).Self_Invalidators;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+        }
+        getDirectoryEntry(address).Self_Invalidators.clear();
+    }*/
+    action(sendDirectDecreaseStrength, "self_direct_decr", desc="tell invalidators to weaken") {
+        peek(request_in, RequestMsg) {
+            enqueue(forward_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor); 
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+        }
+        //getDirectoryEntry(address).Self_Invalidators.clear();
     }
 
     // Queue management
@@ -549,14 +665,16 @@ machine(MachineType:Directory, "Directory protocol")
         popRequestQueue;
     }
 
-    transition({S, S_D, SS_m, S_m}, {Self_Inv}) {
+    transition({S, S_D, S_m, SS_m}, {Self_Inv}) { //SS_m was here
         removeReqFromSharers;
+        addReqToInvalidators;
         sendSelfInvAck;
         popRequestQueue;
     }
 
     transition(S, Self_Inv_Only_Sharer, I) {
         removeReqFromSharers;
+        addReqToInvalidators;
         sendSelfInvAck;
         popRequestQueue;
     }
@@ -588,18 +706,29 @@ machine(MachineType:Directory, "Directory protocol")
     }
 
     transition( M_m, {Self_Inv_Dirty, Self_Inv}) {
+        
+
+        //don't add to list and just decrease strength?
         sendSelfInvAck;
+        //sendDirectDecreaseStrength;
+
+       
         popRequestQueue;
     }
 
     transition(M, {Self_Inv_Dirty}, MI_m) { //Self_Inv was here
+        addReqToInvalidators;
         sendDataToMem;
         clearOwner;
         sendSelfInvAck;
         popRequestQueue;
     }
     transition(M, Self_Inv){
+        //don't add just decrease strength?
+        
+
         sendSelfInvAck;
+        //sendDirectDecreaseStrength
         popRequestQueue;
     }
 
@@ -627,6 +756,7 @@ machine(MachineType:Directory, "Directory protocol")
         popRequestQueue;
     }
     transition(S_D, Self_Inv_Only_Sharer) {
+        addReqToInvalidators;
         removeReqFromSharers;
         sendSelfInvAck;
         popRequestQueue;
@@ -645,6 +775,7 @@ machine(MachineType:Directory, "Directory protocol")
 
     transition(S_D, Self_Inv_Dirty, SS_m) {
         //don't wait for memory and take the self inv dirty data instead
+        addReqToInvalidators;
         removeReqFromSharers
         //sendRespDataToMem;
         sendDataToMem;

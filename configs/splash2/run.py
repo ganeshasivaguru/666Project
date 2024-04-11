@@ -32,19 +32,43 @@ import argparse
 import sys
 
 import m5
+from m5.defines import buildEnv
 from m5.objects import *
+from m5.params import NULL
+from m5.util import addToPath, fatal, warn
+
+addToPath('../')
+
+from ruby import Ruby
+
+from common import Options
+from common import Simulation
+from common import CacheConfig
+from common import CpuConfig
+from common import ObjectList
+from common import MemConfig
+from common.FileSystemConfig import config_filesystem
+from common.Caches import *
+from common.cpu2000 import *
+
+
+
 
 # --------------------
 # Define Command Line Options
 # ====================
 
 parser = argparse.ArgumentParser()
+Options.addCommonOptions(parser)
+Options.addSEOptions(parser)
+#Options.addNoISAOptions(parser)
+#if '--ruby' in sys.argv:
+Ruby.define_options(parser)
 
 parser.add_argument("-d", "--detailed", action="store_true")
 parser.add_argument("-t", "--timing", action="store_true")
-parser.add_argument("-m", "--maxtick", type=int)
-parser.add_argument("-n", "--numcpus",
-                    help="Number of cpus in total", type=int)
+#parser.add_argument("-n", "--num_cpus",
+                    #help="Number of cpus in total", type=int)
 parser.add_argument("-f", "--frequency",
                     default = "1GHz",
                     help="Frequency of each CPU")
@@ -58,15 +82,49 @@ parser.add_argument("--l2latency",
                     default = "10ns")
 parser.add_argument("--rootdir",
                     help="Root directory of Splash2",
-                    default="/dist/splash2/codes")
+                    default="codes")
 parser.add_argument("-b", "--benchmark",
                     help="Splash 2 benchmark to run")
+#parser.add_argument("--cpu-type", default = "AtomicSimpleCPU")
 
 args = parser.parse_args()
 
-if not args.numcpus:
+if not args.num_cpus:
     print("Specify the number of cpus with -n")
     sys.exit(1)
+
+
+#------------------
+# Nicole
+#------------------
+
+busFrequency = Frequency(args.frequency)
+
+if args.timing:
+    cpus = [TimingSimpleCPU(cpu_id = i,
+                            clock=args.frequency)
+            for i in range(args.num_cpus)]
+elif args.detailed:
+    cpus = [DerivO3CPU(cpu_id = i,
+                       clock=args.frequency)
+            for i in range(args.num_cpus)]
+else:
+    cpus = [TimingSimpleCPU(cpu_id = i)
+            for i in range(args.num_cpus)]
+
+
+np = args.num_cpus
+numThreads = 1
+(CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(args)
+CPUClass.numThreads = numThreads
+print("here")
+system = System(cpu = cpus,
+                mem_mode = test_mem_mode,
+                mem_ranges = [AddrRange(args.mem_size)],
+                cache_line_size = args.cacheline_size)
+
+if numThreads > 1:
+    system.multi_thread = True
 
 # --------------------
 # Define Splash2 Benchmarks
@@ -74,146 +132,190 @@ if not args.numcpus:
 class Cholesky(Process):
     cwd = args.rootdir + '/kernels/cholesky'
     executable = args.rootdir + '/kernels/cholesky/CHOLESKY'
-    cmd = ['CHOLESKY', '-p' +  str(args.numcpus),
+    cmd = ['CHOLESKY', '-p' +  str(args.num_cpus),
             args.rootdir + '/kernels/cholesky/inputs/tk23.O']
 
 class FFT(Process):
     cwd = args.rootdir + '/kernels/fft'
     executable = args.rootdir + '/kernels/fft/FFT'
-    cmd = ['FFT', '-p', str(args.numcpus), '-m18']
+    cmd = ['FFT', '-p', str(args.num_cpus), '-m18']
 
 class LU_contig(Process):
     executable = args.rootdir + '/kernels/lu/contiguous_blocks/LU'
-    cmd = ['LU', '-p', str(args.numcpus)]
+    cmd = ['LU', '-p', str(args.num_cpus)]
     cwd = args.rootdir + '/kernels/lu/contiguous_blocks'
 
 class LU_noncontig(Process):
     executable = args.rootdir + '/kernels/lu/non_contiguous_blocks/LU'
-    cmd = ['LU', '-p', str(args.numcpus)]
+    cmd = ['LU', '-p', str(args.num_cpus)]
     cwd = args.rootdir + '/kernels/lu/non_contiguous_blocks'
 
 class Radix(Process):
     executable = args.rootdir + '/kernels/radix/RADIX'
-    cmd = ['RADIX', '-n524288', '-p', str(args.numcpus)]
+    cmd = ['RADIX', '-n524288', '-p', str(args.num_cpus)]
     cwd = args.rootdir + '/kernels/radix'
 
 class Barnes(Process):
     executable = args.rootdir + '/apps/barnes/BARNES'
     cmd = ['BARNES']
-    input = args.rootdir + '/apps/barnes/input.p' + str(args.numcpus)
+    input = args.rootdir + '/apps/barnes/inputs/n8k-p' + str(args.num_cpus)
     cwd = args.rootdir + '/apps/barnes'
 
 class FMM(Process):
     executable = args.rootdir + '/apps/fmm/FMM'
     cmd = ['FMM']
-    if str(args.numcpus) == '1':
+    if str(args.num_cpus) == '1':
         input = args.rootdir + '/apps/fmm/inputs/input.2048'
     else:
-        input = args.rootdir + '/apps/fmm/inputs/input.2048.p' + str(args.numcpus)
+        input = args.rootdir + '/apps/fmm/inputs/input.2048.p' + str(args.num_cpus)
     cwd = args.rootdir + '/apps/fmm'
 
 class Ocean_contig(Process):
     executable = args.rootdir + '/apps/ocean/contiguous_partitions/OCEAN'
-    cmd = ['OCEAN', '-p', str(args.numcpus)]
+    cmd = ['OCEAN', '-p', str(args.num_cpus)]
     cwd = args.rootdir + '/apps/ocean/contiguous_partitions'
 
 class Ocean_noncontig(Process):
     executable = args.rootdir + '/apps/ocean/non_contiguous_partitions/OCEAN'
-    cmd = ['OCEAN', '-p', str(args.numcpus)]
+    cmd = ['OCEAN', '-p', str(args.num_cpus)]
     cwd = args.rootdir + '/apps/ocean/non_contiguous_partitions'
 
 class Raytrace(Process):
     executable = args.rootdir + '/apps/raytrace/RAYTRACE'
-    cmd = ['RAYTRACE', '-p' + str(args.numcpus),
+    cmd = ['RAYTRACE', '-p' + str(args.num_cpus),
            args.rootdir + '/apps/raytrace/inputs/teapot.env']
     cwd = args.rootdir + '/apps/raytrace'
 
 class Water_nsquared(Process):
     executable = args.rootdir + '/apps/water-nsquared/WATER-NSQUARED'
     cmd = ['WATER-NSQUARED']
-    if args.numcpus==1:
+    if args.num_cpus==1:
         input = args.rootdir + '/apps/water-nsquared/input'
     else:
-        input = args.rootdir + '/apps/water-nsquared/input.p' + str(args.numcpus)
+        input = args.rootdir + '/apps/water-nsquared/input.p' + str(args.num_cpus)
     cwd = args.rootdir + '/apps/water-nsquared'
 
 class Water_spatial(Process):
     executable = args.rootdir + '/apps/water-spatial/WATER-SPATIAL'
     cmd = ['WATER-SPATIAL']
-    if args.numcpus==1:
+    if args.num_cpus==1:
         input = args.rootdir + '/apps/water-spatial/input'
     else:
-        input = args.rootdir + '/apps/water-spatial/input.p' + str(args.numcpus)
+        input = args.rootdir + '/apps/water-spatial/input.p' + str(args.num_cpus)
     cwd = args.rootdir + '/apps/water-spatial'
 
 # --------------------
 # Base L1 Cache Definition
 # ====================
 
-class L1(Cache):
-    latency = args.l1latency
-    mshrs = 12
-    tgts_per_mshr = 8
+#class L1(Cache):
+#    latency = args.l1latency
+#    mshrs = 12
+#    tgts_per_mshr = 8
+#
+## ----------------------
+## Base L2 Cache Definition
+## ----------------------
+#
+#class L2(Cache):
+#    latency = args.l2latency
+#    mshrs = 92
+#    tgts_per_mshr = 16
+#    write_buffers = 8
 
-# ----------------------
-# Base L2 Cache Definition
-# ----------------------
-
-class L2(Cache):
-    latency = args.l2latency
-    mshrs = 92
-    tgts_per_mshr = 16
-    write_buffers = 8
 
 # ----------------------
 # Define the cpus
 # ----------------------
 
-busFrequency = Frequency(args.frequency)
+#busFrequency = Frequency(args.frequency)
+#if args.timing:
+#    cpus = [TimingSimpleCPU(cpu_id = i,
+#                            clock=args.frequency)
+#            for i in range(args.num_cpus)]
+#elif args.detailed:
+#    cpus = [DerivO3CPU(cpu_id = i,
+#                       clock=args.frequency)
+#            for i in range(args.num_cpus)]
+#else:
+#    cpus = [AtomicSimpleCPU(cpu_id = i)
+#            for i in range(args.num_cpus)]
 
-if args.timing:
-    cpus = [TimingSimpleCPU(cpu_id = i,
-                            clock=args.frequency)
-            for i in range(args.numcpus)]
-elif args.detailed:
-    cpus = [DerivO3CPU(cpu_id = i,
-                       clock=args.frequency)
-            for i in range(args.numcpus)]
-else:
-    cpus = [AtomicSimpleCPU(cpu_id = i,
-                            clock=args.frequency)
-            for i in range(args.numcpus)]
+# ------------------
+# Added after ISA size = 0
+#-------------------
+print(buildEnv['TARGET_ISA'])
+
+# --------------------------
+# Nicole: add ruby system
+#---------------------------
+
+# Create a top-level voltage domain
+system.voltage_domain = VoltageDomain(voltage = args.sys_voltage)
+# Create a CPU voltage domain
+system.cpu_voltage_domain = VoltageDomain()
+# All cpus belong to a common cpu_clk_domain, therefore running at a common
+# frequency.
+# Create a source clock for the system and set the clock period
+system.clk_domain = SrcClockDomain(clock =  args.sys_clock,
+                                   voltage_domain = system.voltage_domain)
+
+# Create a separate clock domain for the CPUs
+system.cpu_clk_domain = SrcClockDomain(clock = args.cpu_clock,
+                                       voltage_domain =
+                                       system.cpu_voltage_domain)
+for cpu in system.cpu:
+    cpu.clk_domain = system.cpu_clk_domain
+
+
+
+
+
+
+Ruby.create_system(args, False, system) #cpus=?
+print("created system")
+assert(args.num_cpus == len(system.ruby._cpu_ports))
+system.ruby.clk_domain = SrcClockDomain(clock = args.ruby_clock,
+                                        voltage_domain = system.voltage_domain)
+for i in range(np):
+    ruby_port = system.ruby._cpu_ports[i]
+    # Create the interrupt controller and connect its ports to Ruby
+    # Note that the interrupt controller is always present but only
+    # in x86 does it have message ports that need to be connected
+    system.cpu[i].createInterruptController()
+    # Connect the cpu's cache ports to Ruby
+    ruby_port.connectCpuPorts(system.cpu[i])
 
 # ----------------------
 # Create a system, and add system wide objects
 # ----------------------
-system = System(cpu = cpus, physmem = SimpleMemory(),
-                membus = SystemXBar(clock = busFrequency))
-system.clock = '1GHz'
-
-system.toL2bus = L2XBar(clock = busFrequency)
-system.l2 = L2(size = args.l2size, assoc = 8)
+#system = System(cpu = cpus, physmem = SimpleMemory(),
+#                membus = SystemXBar(clock = busFrequency))
+#system.clock = '1GHz'
+#
+#system.toL2bus = L2XBar(clock = busFrequency)
+#system.l2 = L2(size = args.l2size, assoc = 8)
 
 # ----------------------
 # Connect the L2 cache and memory together
 # ----------------------
 
-system.physmem.port = system.membus.mem_side_ports
-system.l2.cpu_side = system.toL2bus.mem_side_ports
-system.l2.mem_side = system.membus.cpu_side_ports
-system.system_port = system.membus.cpu_side_ports
+#system.physmem.port = system.membus.mem_side_ports
+#system.l2.cpu_side = system.toL2bus.mem_side_ports
+#system.l2.mem_side = system.membus.cpu_side_ports
+#system.system_port = system.membus.cpu_side_ports
 
 # ----------------------
 # Connect the L2 cache and clusters together
 # ----------------------
-for cpu in cpus:
-    cpu.addPrivateSplitL1Caches(L1(size = args.l1size, assoc = 1),
-                                L1(size = args.l1size, assoc = 4))
-    # connect cpu level-1 caches to shared level-2 cache
-    cpu.connectAllPorts(
-        system.toL2bus.cpu_side_ports,
-        system.membus.cpu_side_ports,
-        system.membus.mem_side_ports)
+#for cpu in cpus:
+#    cpu.addPrivateSplitL1Caches(L1(size = args.l1size, assoc = 1),
+#                                L1(size = args.l1size, assoc = 4))
+#    # connect cpu level-1 caches to shared level-2 cache
+#    cpu.connectAllPorts(
+#        system.toL2bus.cpu_side_ports,
+#        system.membus.cpu_side_ports,
+#        system.membus.mem_side_ports)
 
 
 # ----------------------
@@ -262,6 +364,7 @@ else:
 
 for cpu in cpus:
     cpu.workload = root.workload
+    cpu.createThreads()
 
 system.workload = SEWorkload.init_compatible(root.workload.executable)
 
@@ -273,13 +376,15 @@ if args.timing or args.detailed:
     root.system.mem_mode = 'timing'
 
 # instantiate configuration
+print("before")
 m5.instantiate()
+print("after")
 
 # simulate until program terminates
-if args.maxtick:
-    exit_event = m5.simulate(args.maxtick)
-else:
-    exit_event = m5.simulate(m5.MaxTick)
+#if args.maxtick:
+    #exit_event = m5.simulate(args.maxtick)
+#else:
+exit_event = m5.simulate(m5.MaxTick)
 
 print('Exiting @ tick', m5.curTick(), 'because', exit_event.getCause())
 

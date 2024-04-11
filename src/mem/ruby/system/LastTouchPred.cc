@@ -85,6 +85,60 @@ LastTouchPred::get_LTP_sig_table_size(){
     return LTP_sig_table.size();
 }
 
+
+void
+LastTouchPred::incrementAccuracy(Addr block_tag, int value){
+    for (int i = 0; i <LTP_sig_table.size(); i++){
+        for(int x = 0; x <LTP_sig_table[i].size(); x++){
+            if(LTP_sig_table[i][x][0] == block_tag){
+                if(LTP_sig_table[i][x][1] == value){
+                    if(LTP_sig_table[i][x][2] != 3){
+                        LTP_sig_table[i][x][2]++;
+                    }
+                }
+                
+            }
+        }
+    }
+}
+void
+LastTouchPred::decrementAccuracy(Addr block_tag, int value){
+    for (int i = 0; i <LTP_sig_table.size(); i++){
+        for(int x = 0; x <LTP_sig_table[i].size(); x++){
+            if(LTP_sig_table[i][x][0] == block_tag){
+                if(LTP_sig_table[i][x][1] == value){
+                    if(LTP_sig_table[i][x][2] > 0){
+                        LTP_sig_table[i][x][2]--;
+                    }
+                }
+                
+            }
+        }
+    }
+}
+void 
+LastTouchPred::weakenAccuracy(Addr block_tag){
+    //search through last touch array and find last LT signature for this block
+    for(int i = 0; i < last_touched_signature.size(); i++){
+        if(last_touched_signature[i].size() > 0 && last_touched_signature[i][0][0] == block_tag ){
+            decrementAccuracy(block_tag,last_touched_signature[i][0][1]);
+            last_touched_signature[i].erase(last_touched_signature[i].begin());
+        }
+    }
+    
+}
+
+void 
+LastTouchPred::strengthenAccuracy(Addr block_tag){
+    //search through last touch array and find last LT signature for this block
+    for(int i = 0; i < last_touched_signature.size(); i++){
+        if(last_touched_signature[i].size() > 0 && last_touched_signature[i][0][0] == block_tag ){
+            incrementAccuracy(block_tag,last_touched_signature[i][0][1]);
+            last_touched_signature[i].erase(last_touched_signature[i].begin());
+        }
+    }
+    
+}
 void
 LastTouchPred::add_new_sig_table(Addr block_tag,Packet* pkt){
 
@@ -95,7 +149,7 @@ LastTouchPred::add_new_sig_table(Addr block_tag,Packet* pkt){
     int LT_match = 0;
     int self_invalidate = 0;
     int found_block = 0;
-    std::vector<int> new_vect{block_tag, value}; //  signature encoding
+    std::vector<int> new_vect{block_tag, value,3}; //  signature encoding
     for (int i = 0; i <current_sig_table.size(); i++){
         if (current_sig_table[i][0] == block_tag){
             //inform("\nfound tag = %x\n", block_tag);
@@ -143,7 +197,7 @@ LastTouchPred::check_self_invalidation(Addr block_tag){
 
     //inform("match = %d\n",LT_match);
     if (LT_match){
-    inform("address %x matched for LT and to be self invalidated\n",block_tag);
+        inform("address %x matched for LT and to be self invalidated\n",block_tag);
     }
 
     return LT_match;
@@ -170,7 +224,7 @@ LastTouchPred::add_new_sig_LTP_table(Addr block_tag){
         //iterates through table to see if block tag is present
         if (value != 0){
             //inform("value!=0\n");
-            std::vector<int> new_vect{block_tag, value};
+            std::vector<int> new_vect{block_tag, value,3};
             int found_block = 0;
             //inform("before size\n");
             //inform("size = %d\n",LTP_sig_table.size());
@@ -209,6 +263,28 @@ LastTouchPred::get_sig_LTP_table_value(int block_index){
 
     return LTP_sig_table[block_index][0];
 }*/
+void
+LastTouchPred::updateLastTouchedSignatureTable(Addr block_tag, int value){
+    //iterate through the table and look for a match for the block
+    int foundBlock = 0;
+    std::vector new_vect = {block_tag, value};
+    for (int i = 0; i < last_touched_signature.size(); i++){
+        if(last_touched_signature[i].size() == 0  || last_touched_signature[i][0][0] == block_tag ){
+            //update last touched
+
+            last_touched_signature[i].push_back(new_vect);
+            foundBlock = 1;
+        }
+    }
+    if(!foundBlock){
+        //add block
+        std::vector<int> new_vect = {block_tag,value};
+        std::vector<std::vector<int>> add_vect;
+
+        add_vect.push_back(new_vect);
+        last_touched_signature.push_back(add_vect);
+    }
+}
 
 int
 LastTouchPred::check_for_LTP_match(int value, Addr block_tag){
@@ -222,12 +298,19 @@ LastTouchPred::check_for_LTP_match(int value, Addr block_tag){
             //check block tag in index 0
             if (LTP_sig_table[i][0][0] == block_tag ){
                 //this index is for the target block, so check signature/value
-                if (LTP_sig_table[i][0][1] == value){
+                if (LTP_sig_table[i][0][1] == value && LTP_sig_table[i][0][1] >= 2){
                     LT_match = 1;
                 }
             }
         }
     }
+    //if(block_tag == 0x400){
+        //LT_match = 1;
+    //}
+    if(LT_match){
+        updateLastTouchedSignatureTable(block_tag,value);
+    }
+    
 
     return LT_match;
 }

@@ -71,7 +71,8 @@ structure (LastTouchPred, external = "yes") {
         //int get_sig_LTP_table_value(int block_index);
 
         int check_for_LTP_match(int value, Addr block_tag);
-
+        void strengthenAccuracy(Addr block_tag);
+        void weakenAccuracy(Addr block_tag);
 }
 
 external_type(Scalar, primitive="yes");

@@ -78,10 +78,16 @@ class LastTouchPred: public SimObject
         LastTouchPred(const Params &p);
         std::vector<std::vector<int>> current_sig_table;
         std::vector<std::vector<std::vector<int>>> LTP_sig_table;//(100,-1);
+        std::vector<std::vector<std::vector<int>>> last_touched_signature;
 
         void update_table_size(int num_blocks);
         int get_sig_table_size();
         int get_LTP_sig_table_size();
+        void incrementAccuracy(Addr block_tag, int value);
+        void decrementAccuracy(Addr block_tag, int value);
+        void weakenAccuracy(Addr block_tag);
+        void strengthenAccuracy(Addr block_tag);
+        void updateLastTouchedSignatureTable(Addr block_tag, int value);
 
         //sig table add and get
         void add_new_sig_table(Addr block_tag, PacketPtr pkt);

@@ -150,6 +150,8 @@ machine(MachineType:L1Cache, "MSI cache")
         LastInvAck,     desc="Triggered after the last ack is received";
 
         SELF_INV_DIR_ACK, desc="dir acked self inv";
+        Self_Inv_Correct, desc="prediction was correct";
+        Self_Inv_Wrong, desc="prediction was wrong";
         
 
 
@@ -416,6 +418,11 @@ machine(MachineType:L1Cache, "MSI cache")
                 } else if (in_msg.Type == CoherenceRequestType:SELF_INV_DIR_ACK) {
                     trigger(Event:Self_Inv_Dir_Ack, in_msg.addr, cache_entry, tbe);
                 } 
+                else if(in_msg.Type == CoherenceRequestType:SELF_INV_RIGHT_PREDICT){
+                    trigger(Event:Self_Inv_Correct, in_msg.addr, cache_entry, tbe);
+                }else if(in_msg.Type == CoherenceRequestType:SELF_INV_WRONG_PREDICT){
+                    trigger(Event:Self_Inv_Wrong, in_msg.addr, cache_entry, tbe);
+                 }
                 
                 else {
                     error("Unexpected forward message!");
@@ -513,6 +520,13 @@ machine(MachineType:L1Cache, "MSI cache")
     action(add_new_LTP_trace, "self", desc="block was invalidated, so capture current trace and turn to LT trace") {
         LTP.add_new_sig_LTP_table(address);
   
+    }
+    action(decreaseStrength, "self_decrease", desc="block was invalidated and was wrong") {
+        LTP.weakenAccuracy(address);
+    }
+
+    action(increaseStrength, "self_increase", desc="block was invalidated and was right") {
+        LTP.strengthenAccuracy(address);
     }
 
     action(send_self_inv_to_dir_CLEAN, "self_clean", desc="send self inv to directory") {
@@ -866,6 +880,16 @@ machine(MachineType:L1Cache, "MSI cache")
         popMandatoryQueue;
     }
 
+    transition({I, IM_AD, M, IS_D}, Self_Inv_Wrong){
+        decreaseStrength;
+        popForwardQueue;
+    }
+
+    transition({I, IM_AD}, Self_Inv_Correct){
+        increaseStrength;
+        popForwardQueue;
+    }
+
     // You can use {} to specify multiple states or events for which the
     // transition applies. For instance, below. If we are in IS_D, then on any
     // of the following Events (Load, Store, Replacement, Inv) we should stall
@@ -886,6 +910,7 @@ machine(MachineType:L1Cache, "MSI cache")
     transition({IM_AD, IM_A}, {Load, Store, Replacement, FwdGetS, FwdGetM, Self_Inv_Cache}) {
         stall;
     }
+    
 
     transition(I, Self_Inv_Dir_Ack){
         popForwardQueue;
