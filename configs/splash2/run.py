@@ -26,6 +26,9 @@
 
 # Splash2 Run Script
 #
+# Edited by Nicole Gathman to support Ruby systems 
+# Edits are a combination of spec_se.py (for Ruby setup) and this splash run.py file as is
+
 
 import os
 import argparse
@@ -61,14 +64,12 @@ from common.cpu2000 import *
 parser = argparse.ArgumentParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
-#Options.addNoISAOptions(parser)
-#if '--ruby' in sys.argv:
+
+# Add Ruby options
 Ruby.define_options(parser)
 
 parser.add_argument("-d", "--detailed", action="store_true")
 parser.add_argument("-t", "--timing", action="store_true")
-#parser.add_argument("-n", "--num_cpus",
-                    #help="Number of cpus in total", type=int)
 parser.add_argument("-f", "--frequency",
                     default = "1GHz",
                     help="Frequency of each CPU")
@@ -85,7 +86,6 @@ parser.add_argument("--rootdir",
                     default="codes")
 parser.add_argument("-b", "--benchmark",
                     help="Splash 2 benchmark to run")
-#parser.add_argument("--cpu-type", default = "AtomicSimpleCPU")
 
 args = parser.parse_args()
 
@@ -95,20 +95,19 @@ if not args.num_cpus:
 
 
 #------------------
-# Nicole
+# Nicole: Removed clock frequency from input because it caused an error
 #------------------
 
 busFrequency = Frequency(args.frequency)
 
 if args.timing:
-    cpus = [TimingSimpleCPU(cpu_id = i,
-                            clock=args.frequency)
+    cpus = [TimingSimpleCPU(cpu_id = i)
             for i in range(args.num_cpus)]
 elif args.detailed:
     cpus = [DerivO3CPU(cpu_id = i,
                        clock=args.frequency)
             for i in range(args.num_cpus)]
-else:
+else: #default to timing because Atomic has atomic memory instructions which is not suitable for caching
     cpus = [TimingSimpleCPU(cpu_id = i)
             for i in range(args.num_cpus)]
 
@@ -117,7 +116,6 @@ np = args.num_cpus
 numThreads = 1
 (CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(args)
 CPUClass.numThreads = numThreads
-print("here")
 system = System(cpu = cpus,
                 mem_mode = test_mem_mode,
                 mem_ranges = [AddrRange(args.mem_size)],
@@ -133,7 +131,7 @@ class Cholesky(Process):
     cwd = args.rootdir + '/kernels/cholesky'
     executable = args.rootdir + '/kernels/cholesky/CHOLESKY'
     cmd = ['CHOLESKY', '-p' +  str(args.num_cpus),
-            args.rootdir + '/kernels/cholesky/inputs/tk23.O']
+            'inputs/tk23.O']
 
 class FFT(Process):
     cwd = args.rootdir + '/kernels/fft'
@@ -158,16 +156,16 @@ class Radix(Process):
 class Barnes(Process):
     executable = args.rootdir + '/apps/barnes/BARNES'
     cmd = ['BARNES']
-    input = args.rootdir + '/apps/barnes/inputs/n8k-p' + str(args.num_cpus)
+    input = args.rootdir + '/apps/barnes/inputs/n8k-p' + str(args.num_cpus) #you can also choose another input file name n16384, look in barnes/inputs/ for other input files
     cwd = args.rootdir + '/apps/barnes'
 
 class FMM(Process):
     executable = args.rootdir + '/apps/fmm/FMM'
     cmd = ['FMM']
-    if str(args.num_cpus) == '1':
-        input = args.rootdir + '/apps/fmm/inputs/input.2048'
-    else:
-        input = args.rootdir + '/apps/fmm/inputs/input.2048.p' + str(args.num_cpus)
+    #if str(args.num_cpus) == '1':
+        #input = args.rootdir + '/apps/fmm/inputs/input.2048'
+    #else:
+    input = args.rootdir + '/apps/fmm/inputs/input.'+str(args.num_cpus)+'.2048' 
     cwd = args.rootdir + '/apps/fmm'
 
 class Ocean_contig(Process):
@@ -183,25 +181,25 @@ class Ocean_noncontig(Process):
 class Raytrace(Process):
     executable = args.rootdir + '/apps/raytrace/RAYTRACE'
     cmd = ['RAYTRACE', '-p' + str(args.num_cpus),
-           args.rootdir + '/apps/raytrace/inputs/teapot.env']
+           'inputs/teapot.env']
     cwd = args.rootdir + '/apps/raytrace'
 
 class Water_nsquared(Process):
     executable = args.rootdir + '/apps/water-nsquared/WATER-NSQUARED'
     cmd = ['WATER-NSQUARED']
-    if args.num_cpus==1:
-        input = args.rootdir + '/apps/water-nsquared/input'
-    else:
-        input = args.rootdir + '/apps/water-nsquared/input.p' + str(args.num_cpus)
+    #if args.num_cpus==1:
+        #input = args.rootdir + '/apps/water-nsquared/input'
+    #else:
+    input = args.rootdir + '/apps/water-nsquared/inputs/n512-p' + str(args.num_cpus)
     cwd = args.rootdir + '/apps/water-nsquared'
 
 class Water_spatial(Process):
     executable = args.rootdir + '/apps/water-spatial/WATER-SPATIAL'
     cmd = ['WATER-SPATIAL']
-    if args.num_cpus==1:
-        input = args.rootdir + '/apps/water-spatial/input'
-    else:
-        input = args.rootdir + '/apps/water-spatial/input.p' + str(args.num_cpus)
+    #if args.num_cpus==1:
+        #input = args.rootdir + '/apps/water-spatial/input'
+    #else:
+    input = args.rootdir + '/apps/water-spatial/inputs/n512-p' + str(args.num_cpus)
     cwd = args.rootdir + '/apps/water-spatial'
 
 # --------------------
@@ -224,38 +222,16 @@ class Water_spatial(Process):
 #    write_buffers = 8
 
 
-# ----------------------
-# Define the cpus
-# ----------------------
-
-#busFrequency = Frequency(args.frequency)
-#if args.timing:
-#    cpus = [TimingSimpleCPU(cpu_id = i,
-#                            clock=args.frequency)
-#            for i in range(args.num_cpus)]
-#elif args.detailed:
-#    cpus = [DerivO3CPU(cpu_id = i,
-#                       clock=args.frequency)
-#            for i in range(args.num_cpus)]
-#else:
-#    cpus = [AtomicSimpleCPU(cpu_id = i)
-#            for i in range(args.num_cpus)]
-
-# ------------------
-# Added after ISA size = 0
-#-------------------
-print(buildEnv['TARGET_ISA'])
 
 # --------------------------
-# Nicole: add ruby system
+# Nicole: Instantiate Ruby system for protocol alterations
+# Also add necessary voltage and clock domains for the Ruby system
 #---------------------------
 
 # Create a top-level voltage domain
 system.voltage_domain = VoltageDomain(voltage = args.sys_voltage)
 # Create a CPU voltage domain
 system.cpu_voltage_domain = VoltageDomain()
-# All cpus belong to a common cpu_clk_domain, therefore running at a common
-# frequency.
 # Create a source clock for the system and set the clock period
 system.clk_domain = SrcClockDomain(clock =  args.sys_clock,
                                    voltage_domain = system.voltage_domain)
@@ -267,13 +243,7 @@ system.cpu_clk_domain = SrcClockDomain(clock = args.cpu_clock,
 for cpu in system.cpu:
     cpu.clk_domain = system.cpu_clk_domain
 
-
-
-
-
-
-Ruby.create_system(args, False, system) #cpus=?
-print("created system")
+Ruby.create_system(args, False, system)
 assert(args.num_cpus == len(system.ruby._cpu_ports))
 system.ruby.clk_domain = SrcClockDomain(clock = args.ruby_clock,
                                         voltage_domain = system.voltage_domain)
@@ -285,38 +255,6 @@ for i in range(np):
     system.cpu[i].createInterruptController()
     # Connect the cpu's cache ports to Ruby
     ruby_port.connectCpuPorts(system.cpu[i])
-
-# ----------------------
-# Create a system, and add system wide objects
-# ----------------------
-#system = System(cpu = cpus, physmem = SimpleMemory(),
-#                membus = SystemXBar(clock = busFrequency))
-#system.clock = '1GHz'
-#
-#system.toL2bus = L2XBar(clock = busFrequency)
-#system.l2 = L2(size = args.l2size, assoc = 8)
-
-# ----------------------
-# Connect the L2 cache and memory together
-# ----------------------
-
-#system.physmem.port = system.membus.mem_side_ports
-#system.l2.cpu_side = system.toL2bus.mem_side_ports
-#system.l2.mem_side = system.membus.cpu_side_ports
-#system.system_port = system.membus.cpu_side_ports
-
-# ----------------------
-# Connect the L2 cache and clusters together
-# ----------------------
-#for cpu in cpus:
-#    cpu.addPrivateSplitL1Caches(L1(size = args.l1size, assoc = 1),
-#                                L1(size = args.l1size, assoc = 4))
-#    # connect cpu level-1 caches to shared level-2 cache
-#    cpu.connectAllPorts(
-#        system.toL2bus.cpu_side_ports,
-#        system.membus.cpu_side_ports,
-#        system.membus.mem_side_ports)
-
 
 # ----------------------
 # Define the root
@@ -361,10 +299,10 @@ else:
 # --------------------
 # Assign the workload to the cpus
 # ====================
-
+##print(args.num_cpus)
 for cpu in cpus:
     cpu.workload = root.workload
-    cpu.createThreads()
+    cpu.createThreads() #ISA error without this call
 
 system.workload = SEWorkload.init_compatible(root.workload.executable)
 
@@ -372,19 +310,16 @@ system.workload = SEWorkload.init_compatible(root.workload.executable)
 # Run the simulation
 # ----------------------
 
-if args.timing or args.detailed:
-    root.system.mem_mode = 'timing'
+#if args.timing or args.detailed:    
+root.system.mem_mode = 'timing'
 
 # instantiate configuration
-print("before")
 m5.instantiate()
-print("after")
 
 # simulate until program terminates
-#if args.maxtick:
-    #exit_event = m5.simulate(args.maxtick)
-#else:
-exit_event = m5.simulate(m5.MaxTick)
+#print("Max tick = " + str(m5.MaxTick))
+exit_event = m5.simulate(m5.MaxTick) 
+
 
 print('Exiting @ tick', m5.curTick(), 'because', exit_event.getCause())
 
