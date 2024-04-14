@@ -45,10 +45,11 @@ enumeration(CoherenceRequestType, desc="Types of request messages") {
     SELF_INV_LOAD, desc="self_invalidation";
     SELF_INV_DIRTY, desc="self_invalidation";
     SELF_INV_DIR_ACK, desc="directory acked self inv";
+    Self_Inv_Dir_Ack_No_Deallocate, desc="coverage for a race condition";
     Self_Inv,       desc="cache request to self";
     SELF_INV_RIGHT_PREDICT, desc="self inv was correct";
     SELF_INV_WRONG_PREDICT, desc="self inv predict was wrong";
-    
+    Self_Inv_Cache, desc="cache tells itself to invalidate";
     
 
     // "Requests" from the directory to the caches on the fwd network
@@ -60,7 +61,6 @@ enumeration(CoherenceRequestType, desc="Types of request messages") {
 enumeration(CoherenceResponseType, desc="Types of response messages") {
     Data,       desc="Contains the most up-to-date data";
     InvAck,     desc="Message from another cache that they have inv. the blk";
-    Self_Inv_Cache, desc="cache tells itself to invalidate";
     
 }
 

@@ -62,14 +62,16 @@ def create_system(options, full_system, system, dma_ports, bootmem,
     #
     block_size_bits = int(math.log(options.cacheline_size, 2))
     LTP_array = [0 for x in range(options.num_cpus)]
+    print(options.num_cpus)
     for i in range(options.num_cpus):
         LTP = LastTouchPred()
         LTP_array[i] = LTP
+        
         #
         # First create the Ruby objects associated with this cpu
         # Only one cache exists for this protocol, so by default use the L1D
         # config parameters.
-        #
+        print("L1 size = " + str(options.l1d_size))
         cache = L1Cache(size = options.l1d_size,
                         assoc = options.l1d_assoc,
                         start_index_bit = block_size_bits)
@@ -94,6 +96,7 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         cpu_sequencers.append(cpu_seq)
         l1_cntrl_nodes.append(l1_cntrl)
         l1_cntrl.LTP = LTP_array[i]
+        #l1_cntrl.LTP.set_LTP_id(i)
         # Connect the L1 controllers and the network
 
         #l1_cntrl.mandatoryQueue = MessageBuffer()
@@ -120,6 +123,8 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         # is a "to" buffer (i.e., out) then you use the "out_port",
         # otherwise, the in_port.
         l1_cntrl.mandatoryQueue = MessageBuffer()
+        #l1_cntrl.self_inv_queue_out = MessageBuffer()
+        #l1_cntrl.self_inv_queue_in = MessageBuffer()
         #l1_cntrl.L1Cache_out_in = MessageBuffer()
         #l1_cntrl.L1Cache_out_in.in_port = L1Cache_out_in.out_port
 
@@ -131,6 +136,14 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         l1_cntrl.forwardFromDir.in_port = ruby_system.network.out_port
         l1_cntrl.responseFromDirOrSibling = MessageBuffer(ordered = True)
         l1_cntrl.responseFromDirOrSibling.in_port=ruby_system.network.out_port
+
+        l1_cntrl.fromDir_self_inv = MessageBuffer(ordered = True)
+        l1_cntrl.fromDir_self_inv.in_port = ruby_system.network.out_port
+
+        #l1_cntrl.self_inv_queue_in = MessageBuffer(ordered = True)
+        l1_cntrl.self_inv_queue_out = MessageBuffer(ordered = True)
+        #l1_cntrl.self_inv_queue_in.in_port = ruby_system.network.out_port#self_inv_queue_out.out_port#
+        l1_cntrl.self_inv_queue_out.out_port = ruby_system.network.in_port
 
     phys_mem_size = sum([r.size() for r in system.mem_ranges])
     assert(phys_mem_size % options.num_dirs == 0)
@@ -163,6 +176,7 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         #dir_cntrl.forwardFromDir.out_port = ruby_system.network.in_port
         dir_cntrl.requestToMemory = MessageBuffer()
         dir_cntrl.responseFromMemory = MessageBuffer()
+        dir_cntrl.toCache_self_inv_queue = MessageBuffer(ordered = True)
 
         #NIcole added below
         dir_cntrl.forwardToCache = MessageBuffer(ordered = True)
@@ -173,6 +187,9 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         dir_cntrl.responseFromCache.in_port = ruby_system.network.out_port
         dir_cntrl.responseToCache = MessageBuffer(ordered = True)
         dir_cntrl.responseToCache.out_port = ruby_system.network.in_port
+
+        dir_cntrl.requestFromCache_self_inv = MessageBuffer(ordered = True)
+        dir_cntrl.requestFromCache_self_inv.in_port = ruby_system.network.out_port
 
     for i, dma_port in enumerate(dma_ports):
         #

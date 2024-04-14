@@ -73,7 +73,21 @@ LastTouchPred::update_table_size(int num_blocks){
 
     return;
 }
+void
+LastTouchPred::debug_print(){
+    inform("debug print\n");
+}
 
+void
+LastTouchPred::set_LTP_id(int id){
+    LTP_id = id;
+}
+
+void
+LastTouchPred::increment_invalidations(){
+    num_invalidations++;
+    //inform("id = %d, num invalidations = %d\n",LTP_id,num_invalidations );
+}
 
 int
 LastTouchPred::get_sig_table_size(){
@@ -85,9 +99,32 @@ LastTouchPred::get_LTP_sig_table_size(){
     return LTP_sig_table.size();
 }
 
+void 
+LastTouchPred::append_self_inv(Addr block_tag){
+    blocks_to_be_self_inv.push_back(block_tag);
+}
+
+Addr 
+LastTouchPred::pop_self_inv(){
+    Addr front = blocks_to_be_self_inv.front();
+    blocks_to_be_self_inv.pop_front();
+    return front;
+}
+
+bool
+LastTouchPred::blocks_to_be_self_inv_empty(){
+    if(blocks_to_be_self_inv.empty())
+        return true;
+    else
+        return false;
+}
+
 
 void
 LastTouchPred::incrementAccuracy(Addr block_tag, int value){
+    num_right_invalidations++;
+    //inform("id = %d, num right = %d\n",LTP_id,num_right_invalidations);
+    //inform("increment\n");
     for (int i = 0; i <LTP_sig_table.size(); i++){
         for(int x = 0; x <LTP_sig_table[i].size(); x++){
             if(LTP_sig_table[i][x][0] == block_tag){
@@ -103,6 +140,9 @@ LastTouchPred::incrementAccuracy(Addr block_tag, int value){
 }
 void
 LastTouchPred::decrementAccuracy(Addr block_tag, int value){
+    num_wrong_invalidations++;
+    //inform("id = %d, num wrong = %d\n",LTP_id,num_wrong_invalidations);
+    //inform("decrement\n");
     for (int i = 0; i <LTP_sig_table.size(); i++){
         for(int x = 0; x <LTP_sig_table[i].size(); x++){
             if(LTP_sig_table[i][x][0] == block_tag){
@@ -142,14 +182,14 @@ LastTouchPred::strengthenAccuracy(Addr block_tag){
 void
 LastTouchPred::add_new_sig_table(Addr block_tag,Packet* pkt){
 
-    //inform("\n TESTSSS ADD\n");
+    //inform("\n Add new trace\n");
     //return value is whether to self invalidate or not
     int pc = pkt->req->getPC();
     int value = pc & 0x1FFF;//13 bit truncated addition encoding
     int LT_match = 0;
     int self_invalidate = 0;
     int found_block = 0;
-    std::vector<int> new_vect{block_tag, value,3}; //  signature encoding
+    std::vector<int> new_vect{block_tag, value,2}; //  signature encoding
     for (int i = 0; i <current_sig_table.size(); i++){
         if (current_sig_table[i][0] == block_tag){
             //inform("\nfound tag = %x\n", block_tag);
@@ -174,7 +214,7 @@ LastTouchPred::add_new_sig_table(Addr block_tag,Packet* pkt){
 int
 LastTouchPred::check_self_invalidation(Addr block_tag){
     //int test = current_sig_table.size()
-    //inform("\n CHECK SELF TESTSSS \n");
+    //inform("\n check for self invalidation \n");
     //get current trace value
     int found_block = 0;
     //int self_invalidate = 0
@@ -191,12 +231,14 @@ LastTouchPred::check_self_invalidation(Addr block_tag){
         }
 
     }
-    //if (block_tag == 0x400){
-        //LT_match = 1;
-    //}
+    /*if (block_tag == 0x400){
+       LT_match = 1;
+    }*/
 
     //inform("match = %d\n",LT_match);
     if (LT_match){
+        num_invalidations_predicted++;
+        //inform("id = %d, num predicted = %d\n",LTP_id,num_invalidations_predicted);
         inform("address %x matched for LT and to be self invalidated\n",block_tag);
     }
 
@@ -224,7 +266,7 @@ LastTouchPred::add_new_sig_LTP_table(Addr block_tag){
         //iterates through table to see if block tag is present
         if (value != 0){
             //inform("value!=0\n");
-            std::vector<int> new_vect{block_tag, value,3};
+            std::vector<int> new_vect{block_tag, value,2};
             int found_block = 0;
             //inform("before size\n");
             //inform("size = %d\n",LTP_sig_table.size());

@@ -70,6 +70,11 @@ machine(MachineType:L1Cache, "MSI cache")
 
       // This is all of the incoming requests from the core via the sequencer
       MessageBuffer * mandatoryQueue;
+      MessageBuffer * fromDir_self_inv, network="From", virtual_network="0",
+            vnet_type="request";
+      
+      MessageBuffer * self_inv_queue_out, network="To", virtual_network="1",vnet_type=RequestMsg;
+      
 
       LastTouchPred * LTP;
 {
@@ -89,7 +94,7 @@ machine(MachineType:L1Cache, "MSI cache")
         // States moving out of I
         IS_D,   AccessPermission:Invalid,
                     desc="Invalid, moving to S, waiting for data";
-        IM_AD,  AccessPermission:Invalid,
+        IM_AD,  AccessPermission:Busy,
                     desc="Invalid, moving to M, waiting for acks and data";
         IM_A,   AccessPermission:Busy,
                     desc="Invalid, moving to M, waiting for acks";
@@ -316,6 +321,7 @@ machine(MachineType:L1Cache, "MSI cache")
     //      we are sending these requests out of.
     out_port(request_out, RequestMsg, requestToDir);
     out_port(response_out, ResponseMsg, responseToDirOrSibling);
+    out_port(self_inv_to_dir, RequestMsg, self_inv_queue_out);
 
     // Input ports. The order here is/(can be) important. The code in each
     // in_port is executed in the order specified in this file (or by the rank
@@ -329,8 +335,6 @@ machine(MachineType:L1Cache, "MSI cache")
     // "responseFromDirOrSibling" is the name of the buffer this in_port is
     // connected to for responses from other caches and the directory.
     in_port(response_in, ResponseMsg, responseFromDirOrSibling) {
-        // NOTE: You have to check to make sure the message buffer has a valid
-        // message at the head. The code in in_port is executed either way.
         if (response_in.isReady(clockEdge())) {
             // Peek is a special function. Any code inside a peek statement has
             // a special variable declared and populated: in_msg. This contains
@@ -343,9 +347,7 @@ machine(MachineType:L1Cache, "MSI cache")
                 TBE tbe := TBEs[in_msg.addr];
                 // The TBE better exist since this is a response and we need to
                 // be able to check the remaining acks.
-                if(in_msg.Type != CoherenceResponseType:Self_Inv_Cache){
-                    assert(is_valid(tbe));
-                }
+                assert(is_valid(tbe));
 
                 // If it's from the directory...
                 if (machineIDToMachineType(in_msg.Sender) ==
@@ -384,10 +386,7 @@ machine(MachineType:L1Cache, "MSI cache")
                             trigger(Event:InvAck, in_msg.addr, cache_entry,
                                     tbe);
                         }
-                    } else if(in_msg.Type == CoherenceResponseType:Self_Inv_Cache){
-                        trigger(Event:Self_Inv_Cache, in_msg.addr, cache_entry,tbe);
                     }
-                    
                     else {
                         error("Unexpected response from other cache");
                     }
@@ -396,15 +395,26 @@ machine(MachineType:L1Cache, "MSI cache")
         }
     }
 
+
     // Forward requests for other caches.
     in_port(forward_in, RequestMsg, forwardFromDir) {
-        if (forward_in.isReady(clockEdge())) {
+        if(!LTP.blocks_to_be_self_inv_empty()){
+            //do self inv instead
+            //pop the front
+            Addr address := LTP.pop_self_inv();
+            Entry cache_entry := getCacheEntry(address);
+            TBE tbe := TBEs[address];
+            trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
+        }
+        else if (forward_in.isReady(clockEdge())) {
             peek(forward_in, RequestMsg) {
                 // Grab the entry and tbe if they exist.
                 Entry cache_entry := getCacheEntry(in_msg.addr);
                 TBE tbe := TBEs[in_msg.addr];
-
-                if (in_msg.Type == CoherenceRequestType:GetS) {
+                if (in_msg.Type == CoherenceRequestType:PutAck) {
+                    trigger(Event:PutAck, in_msg.addr, cache_entry, tbe);
+                } 
+                else if (in_msg.Type == CoherenceRequestType:GetS) {
                     // This is a special function that will trigger a
                     // transition (as defined below). It *must* have these
                     // parameters.
@@ -412,18 +422,18 @@ machine(MachineType:L1Cache, "MSI cache")
                 } else if (in_msg.Type == CoherenceRequestType:GetM) {
                     trigger(Event:FwdGetM, in_msg.addr, cache_entry, tbe);
                 } else if (in_msg.Type == CoherenceRequestType:Inv) {
+                    LTP.increment_invalidations();
                     trigger(Event:Inv, in_msg.addr, cache_entry, tbe);
-                } else if (in_msg.Type == CoherenceRequestType:PutAck) {
-                    trigger(Event:PutAck, in_msg.addr, cache_entry, tbe);
-                } else if (in_msg.Type == CoherenceRequestType:SELF_INV_DIR_ACK) {
+
+                } 
+                if (in_msg.Type == CoherenceRequestType:SELF_INV_DIR_ACK) {
                     trigger(Event:Self_Inv_Dir_Ack, in_msg.addr, cache_entry, tbe);
                 } 
                 else if(in_msg.Type == CoherenceRequestType:SELF_INV_RIGHT_PREDICT){
                     trigger(Event:Self_Inv_Correct, in_msg.addr, cache_entry, tbe);
                 }else if(in_msg.Type == CoherenceRequestType:SELF_INV_WRONG_PREDICT){
                     trigger(Event:Self_Inv_Wrong, in_msg.addr, cache_entry, tbe);
-                 }
-                
+                }
                 else {
                     error("Unexpected forward message!");
                 }
@@ -434,7 +444,15 @@ machine(MachineType:L1Cache, "MSI cache")
     // The "mandatory queue" is the port/queue from the CPU or other processor.
     // This is *always* a RubyRequest
     in_port(mandatory_in, RubyRequest, mandatoryQueue) {
-        if (mandatory_in.isReady(clockEdge())) {
+        if(!LTP.blocks_to_be_self_inv_empty()){
+            //do self inv instead
+            //pop the front
+            Addr address := LTP.pop_self_inv();
+            Entry cache_entry := getCacheEntry(address);
+            TBE tbe := TBEs[address];
+            trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
+        }
+        else if (mandatory_in.isReady(clockEdge())) {
             // Block all requests if there is already an outstanding request
             // that has the same line address. This is unblocked when we
             // finally respond to the request.
@@ -458,14 +476,37 @@ machine(MachineType:L1Cache, "MSI cache")
                 } else {
                     if (in_msg.Type == RubyRequestType:LD ||
                             in_msg.Type == RubyRequestType:IFETCH) {
+                        LTP.add_new_sig_table(in_msg.LineAddress, in_msg.pkt);
                         trigger(Event:Load, in_msg.LineAddress, cache_entry,
                                 tbe);
                     } else if (in_msg.Type == RubyRequestType:ST) {
+                        LTP.add_new_sig_table(in_msg.LineAddress, in_msg.pkt);
                         trigger(Event:Store, in_msg.LineAddress, cache_entry,
                                 tbe);
                     } else {
                         error("Unexpected type from processor");
                     }
+                }
+            }
+        }
+    }
+
+    in_port(fromDir_self_inv_in, RequestMsg, fromDir_self_inv) {
+        if (fromDir_self_inv_in.isReady(clockEdge())) {
+            peek(fromDir_self_inv_in, RequestMsg) {
+                //error("got something here");
+                Entry cache_entry := getCacheEntry(in_msg.addr);
+                TBE tbe := TBEs[in_msg.addr];
+                if (in_msg.Type == CoherenceRequestType:SELF_INV_DIR_ACK) {
+                    trigger(Event:Self_Inv_Dir_Ack, in_msg.addr, cache_entry, tbe);
+                } 
+                else if(in_msg.Type == CoherenceRequestType:SELF_INV_RIGHT_PREDICT){
+                    trigger(Event:Self_Inv_Correct, in_msg.addr, cache_entry, tbe);
+                }else if(in_msg.Type == CoherenceRequestType:SELF_INV_WRONG_PREDICT){
+                    trigger(Event:Self_Inv_Wrong, in_msg.addr, cache_entry, tbe);
+                }
+                else {
+                    error("Unexpected message type.");
                 }
             }
         }
@@ -527,39 +568,30 @@ machine(MachineType:L1Cache, "MSI cache")
 
     action(increaseStrength, "self_increase", desc="block was invalidated and was right") {
         LTP.strengthenAccuracy(address);
+        //error("aafter increase");
     }
 
     action(send_self_inv_to_dir_CLEAN, "self_clean", desc="send self inv to directory") {
-        enqueue(request_out, RequestMsg, 1) {
+        enqueue(self_inv_to_dir, RequestMsg, 1) {
             out_msg.addr := address;
-            // This type is defined in MSI-msg.sm for this protocol.
             out_msg.Type := CoherenceRequestType:SELF_INV_LOAD;
             out_msg.MessageSize := MessageSizeType:Control;
-            //out_msg.DataBlk := cache_entry.DataBlk;
             
             out_msg.Destination.add(mapAddressToMachine(address,
                                     MachineType:Directory));
-            // See mem/ruby/protocol/RubySlicc_Exports.sm for possible sizes.
-            
-            // Set that the reqeustor is this machine so we get the response.
             out_msg.Requestor := machineID;
         }
   
     }
 
     action(send_self_inv_to_dir_DIRTY, "self_dirty", desc="send self inv to directory") {
-        enqueue(request_out, RequestMsg, 1) {
+        enqueue(self_inv_to_dir, RequestMsg, 1) {
             out_msg.addr := address;
-            // This type is defined in MSI-msg.sm for this protocol.
-            
             out_msg.Type := CoherenceRequestType:SELF_INV_DIRTY;
             out_msg.MessageSize := MessageSizeType:Data;
             out_msg.DataBlk := cache_entry.DataBlk;
-            
             out_msg.Destination.add(mapAddressToMachine(address,
                                     MachineType:Directory));
-            // See mem/ruby/protocol/RubySlicc_Exports.sm for possible sizes.
-            // Set that the reqeustor is this machine so we get the response.
             out_msg.Requestor := machineID;
         }
     }
@@ -666,49 +698,23 @@ machine(MachineType:L1Cache, "MSI cache")
     // Responses to CPU requests (e.g., hits and store acks)
 
     action(loadHit, "Lh", desc="Load hit") {
+        LTP.debug_print();
         assert(is_valid(cache_entry));
         // Set this entry as the most recently used for the replacement policy
         cacheMemory.setMRU(cache_entry);
         // Send the data back to the sequencer/CPU. NOTE: False means it was
         // not an "external hit", but hit in this local cache.
         sequencer.readCallback(address, cache_entry.DataBlk, false);
-
+        //LTP.add_new_sig_table(address, in_msg.pkt);
         // call add curr table with address as tag and PC from packet
         int self_invalidate := LTP.check_self_invalidation(address);
 
         if(self_invalidate == 1){
             //send self message to directory
-            //send L1 message to activate event for state transition
-            enqueue(response_out, ResponseMsg, 1) {
-                out_msg.addr := address;
-                // This type is defined in MSI-msg.sm for this protocol.
-                out_msg.Type := CoherenceResponseType:Self_Inv_Cache;
-                out_msg.MessageSize := MessageSizeType:Control;
-                //out_msg.DataBlk := cache_entry.DataBlk;
-                
-                out_msg.Destination.add(machineID);
-                // See mem/ruby/protocol/RubySlicc_Exports.sm for possible sizes.
-                
-                // Set that the reqeustor is this machine so we get the response.
-                //out_msg.Requestor := machineID;
-            }
-            /*
-            enqueue(request_out, RequestMsg, 1) {
-                out_msg.addr := address;
-                // This type is defined in MSI-msg.sm for this protocol.
-                    out_msg.Type := CoherenceRequestType:SELF_INV_LOAD;
-                    out_msg.MessageSize := MessageSizeType:Data;
-                    out_msg.DataBlk := cache_entry.DataBlk;
-                
-                out_msg.Destination.add(mapAddressToMachine(address,
-                                        MachineType:Directory));
-                // See mem/ruby/protocol/RubySlicc_Exports.sm for possible sizes.
-                
-                // Set that the reqeustor is this machine so we get the response.
-                out_msg.Requestor := machineID;
-            }*/
+            //add to LTP queue
+            LTP.append_self_inv(address);
+           
         }
-
     }
 
     action(externalLoadHit, "xLh", desc="External load hit (was a miss)") {
@@ -730,44 +736,11 @@ machine(MachineType:L1Cache, "MSI cache")
         sequencer.writeCallback(address, cache_entry.DataBlk, false);
         //trigger(Event:Replacement, addr, victim_entry, victim_tbe);
         // call add curr table with address as tag and PC from packet
+        //LTP.add_new_sig_table(address, in_msg.pkt);
         int self_invalidate := LTP.check_self_invalidation(address);
 
         if(self_invalidate == 1){
-            //send self message to directory
-            enqueue(response_out, ResponseMsg, 1) {
-                out_msg.addr := address;
-                // This type is defined in MSI-msg.sm for this protocol.
-                //out_msg.Type := CoherenceRequestType:GetS;
-                
-                out_msg.Type := CoherenceResponseType:Self_Inv_Cache;
-                out_msg.MessageSize := MessageSizeType:Control;
-                //out_msg.DataBlk := cache_entry.DataBlk;
-                
-                out_msg.Destination.add(machineID);
-                // See mem/ruby/protocol/RubySlicc_Exports.sm for possible sizes.
-                //out_msg.MessageSize := MessageSizeType:Control;
-                // Set that the reqeustor is this machine so we get the response.
-                //out_msg.Requestor := machineID;
-            }
-            /*
-            enqueue(request_out, RequestMsg, 1) {
-                out_msg.addr := address;
-                // This type is defined in MSI-msg.sm for this protocol.
-                //out_msg.Type := CoherenceRequestType:GetS;
-                
-                out_msg.Type := CoherenceRequestType:SELF_INV_DIRTY;
-                out_msg.MessageSize := MessageSizeType:Data;
-                out_msg.DataBlk := cache_entry.DataBlk;
-                
-                out_msg.Destination.add(mapAddressToMachine(address,
-                                        MachineType:Directory));
-                // See mem/ruby/protocol/RubySlicc_Exports.sm for possible sizes.
-                //out_msg.MessageSize := MessageSizeType:Control;
-                // Set that the reqeustor is this machine so we get the response.
-                out_msg.Requestor := machineID;
-            }
-            */
-
+           LTP.append_self_inv(address);
         }
     }
 
@@ -838,6 +811,10 @@ machine(MachineType:L1Cache, "MSI cache")
         forward_in.dequeue(clockEdge());
     }
 
+    action(popDirSelfInvQueue, "self_dir_pop", desc="Pop the dir self inv queue") {
+        fromDir_self_inv_in.dequeue(clockEdge());
+    }
+
     // Stalling actions
 
     action(stall, "z", desc="Stall the incoming request") {
@@ -880,13 +857,21 @@ machine(MachineType:L1Cache, "MSI cache")
         popMandatoryQueue;
     }
 
-    transition({I, IM_AD, M, IS_D}, Self_Inv_Wrong){
+    transition({I, IM_AD, M, IS_D, S}, Self_Inv_Wrong){
         decreaseStrength;
         popForwardQueue;
+        //popDirSelfInvQueue;
     }
 
     transition({I, IM_AD}, Self_Inv_Correct){
         increaseStrength;
+        popForwardQueue;
+        //popDirSelfInvQueue;
+    }
+    transition(I, Inv){
+        //self inv must have invalidated before so just send ack
+        sendInvAcktoReq;
+        //increaseStrength;
         popForwardQueue;
     }
 
@@ -908,15 +893,18 @@ machine(MachineType:L1Cache, "MSI cache")
     }
     
     transition({IM_AD, IM_A}, {Load, Store, Replacement, FwdGetS, FwdGetM, Self_Inv_Cache}) {
+        
         stall;
     }
     
 
     transition(I, Self_Inv_Dir_Ack){
+        //popDirSelfInvQueue;
         popForwardQueue;
     }
     transition(I, Self_Inv_Cache){
-        popResponseQueue;
+        //popResponseQueue;
+        //Do nothing?
     }
 
     transition({IM_AD, SM_AD}, {DataDirNoAcks, DataOwner}, M) {
@@ -960,7 +948,7 @@ machine(MachineType:L1Cache, "MSI cache")
 
     transition(S, {Self_Inv_Cache}, SI_A) {
         send_self_inv_to_dir_CLEAN;
-        popResponseQueue;
+        //popResponseQueue;
     }
 
 
@@ -1000,7 +988,7 @@ machine(MachineType:L1Cache, "MSI cache")
     }
     transition(M, Self_Inv_Cache, MI_A) {
         send_self_inv_to_dir_DIRTY;
-        popResponseQueue;
+        //popResponseQueue;
     }
 
 
@@ -1020,7 +1008,8 @@ machine(MachineType:L1Cache, "MSI cache")
 
     transition(M, Self_Inv_Dir_Ack, I) {
         deallocateCacheBlock;
-        popForwardQueue;      
+        //popDirSelfInvQueue;   
+        popForwardQueue;   
     }
 
     transition({MI_A, SI_A, II_A}, {Load, Store, Replacement}) {
@@ -1029,7 +1018,7 @@ machine(MachineType:L1Cache, "MSI cache")
 
     //this invalidation is useless so pop it off and move on
     transition({MI_A, SI_A, II_A}, {Self_Inv_Cache}) {
-       popResponseQueue;
+       //popResponseQueue;
     }
 
     transition(MI_A, FwdGetS, SI_A) {
@@ -1049,6 +1038,7 @@ machine(MachineType:L1Cache, "MSI cache")
     }
     transition({MI_A, SI_A, II_A}, {Self_Inv_Dir_Ack}, I) {
         deallocateCacheBlock;
+        //popDirSelfInvQueue;
         popForwardQueue;
     }
 

@@ -645,26 +645,14 @@ VOID	ReadEnvFile(CHAR *EnvFileName)
 
 
 	/* Open command file. */
-	//char* token = strtok(EnvFileName,'/');
-	char buff[FILENAME_MAX];
-  	getcwd(buff,FILENAME_MAX);
-	//printf("buff = %s\n",buff);
 
-	int dir_len = strlen(buff);
-	int env_len = strlen(EnvFileName);
-	char dest[env_len-dir_len];
-	//printf("len = %d\n",dir_len);
-	strncpy(dest, EnvFileName+(dir_len), env_len-dir_len);
-	//printf("new string = %s\n",dest);
-	//printf("string = %s\n",EnvFileName);
-	
-	pf = fopen(dest, "r");
+	pf = fopen(EnvFileName, "r");
 	if (!pf)
 		{
-		printf(" Unable to open environment file %s\n", dest);
+		printf("Unable to open environment file %s.\n", EnvFileName);
 		exit(-1);
 		}
-	printf("opened file\n");
+
 	InitEnv();			/* Set defaults. */
 
 	nlights    = 0;

@@ -61,11 +61,19 @@ structure (LastTouchPred, external = "yes") {
         int get_sig_table_size();
         int get_LTP_sig_table_size();
 
+        //self inv queues
+        void append_self_inv(Addr block_tag);
+        Addr pop_self_inv();
+        bool blocks_to_be_self_inv_empty();
+
+        void increment_invalidations();
+        void set_LTP_id(int id);
+
         //sig table add and get
         void add_new_sig_table(Addr block_tag, PacketPtr pkt);
         int check_self_invalidation(Addr block_tag);
         //int get_sig_table_value(int block_index);
-
+        void debug_print();
         //LTP sig table add and get
         void add_new_sig_LTP_table(Addr block_tag);
         //int get_sig_LTP_table_value(int block_index);

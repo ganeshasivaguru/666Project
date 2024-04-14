@@ -593,7 +593,7 @@ RubySystem::functionalRead(PacketPtr pkt)
                 return true;
         }
     }
-    if(address == 0x954630){
+    if(address == 0x954630 || address == 0x426540 || address == 0x42656c){
         //checked it out and this is read in the middle of 2 invalid transistions
         return true;
     }

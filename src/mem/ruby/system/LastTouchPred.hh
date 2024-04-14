@@ -74,11 +74,22 @@ namespace ruby
 class LastTouchPred: public SimObject
 {
     public:
+        int LTP_id = 0;
+        void set_LTP_id(int id);
+        //execution stats
+        int num_wrong_invalidations = 0;
+        int num_right_invalidations = 0;
+        int num_invalidations_predicted = 0; 
+        int num_invalidations = 0;
+
         typedef LastTouchPredParams Params;
         LastTouchPred(const Params &p);
         std::vector<std::vector<int>> current_sig_table;
         std::vector<std::vector<std::vector<int>>> LTP_sig_table;//(100,-1);
         std::vector<std::vector<std::vector<int>>> last_touched_signature;
+        std::deque<int> blocks_to_be_self_inv;
+
+        void increment_invalidations();
 
         void update_table_size(int num_blocks);
         int get_sig_table_size();
@@ -88,6 +99,11 @@ class LastTouchPred: public SimObject
         void weakenAccuracy(Addr block_tag);
         void strengthenAccuracy(Addr block_tag);
         void updateLastTouchedSignatureTable(Addr block_tag, int value);
+
+        void debug_print();
+        void append_self_inv(Addr block_tag);
+        Addr pop_self_inv();
+        bool blocks_to_be_self_inv_empty();
 
         //sig table add and get
         void add_new_sig_table(Addr block_tag, PacketPtr pkt);

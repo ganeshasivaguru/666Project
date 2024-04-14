@@ -74,7 +74,7 @@ parser.add_argument("-f", "--frequency",
                     default = "1GHz",
                     help="Frequency of each CPU")
 parser.add_argument("--l1size",
-                    default = "32kB")
+                    default = "1MB")
 parser.add_argument("--l1latency",
                     default = "1ns")
 parser.add_argument("--l2size",
@@ -156,7 +156,7 @@ class Radix(Process):
 class Barnes(Process):
     executable = args.rootdir + '/apps/barnes/BARNES'
     cmd = ['BARNES']
-    input = args.rootdir + '/apps/barnes/inputs/n8k-p' + str(args.num_cpus) #you can also choose another input file name n16384, look in barnes/inputs/ for other input files
+    input = args.rootdir + '/apps/barnes/inputs/n16384-p' + str(args.num_cpus) #you can also choose another input file name n16384, look in barnes/inputs/ for other input files
     cwd = args.rootdir + '/apps/barnes'
 
 class FMM(Process):
@@ -318,7 +318,8 @@ m5.instantiate()
 
 # simulate until program terminates
 #print("Max tick = " + str(m5.MaxTick))
-exit_event = m5.simulate(m5.MaxTick) 
+#exit_event = m5.simulate(1000000000000000) 
+exit_event = m5.simulate(args.abs_max_tick)
 
 
 print('Exiting @ tick', m5.curTick(), 'because', exit_event.getCause())
