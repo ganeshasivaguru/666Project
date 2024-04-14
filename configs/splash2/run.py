@@ -170,7 +170,7 @@ class FMM(Process):
 
 class Ocean_contig(Process):
     executable = args.rootdir + '/apps/ocean/contiguous_partitions/OCEAN'
-    cmd = ['OCEAN', '-p', str(args.num_cpus)]
+    cmd = ['OCEAN', '-n130 -s -p', str(args.num_cpus)]
     cwd = args.rootdir + '/apps/ocean/contiguous_partitions'
 
 class Ocean_noncontig(Process):

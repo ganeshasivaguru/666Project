@@ -269,6 +269,8 @@ int main (int argc, string argv[])
    printf("COMPUTESTART  = %12lu\n",Global->computestart);
 
    SPLASH3_ROI_BEGIN();
+   printf("creating threads\n");
+   exit(1);
    CREATE(SlaveStart, NPROC);
    WAIT_FOR_END(NPROC);
    SPLASH3_ROI_END();

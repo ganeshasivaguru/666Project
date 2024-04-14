@@ -477,6 +477,8 @@ int	main(int argc, CHAR *argv[])
 	assert(__threads__<__MAX_THREADS__);
 	pthread_mutex_lock(&__intern__);
 	for (i = 0; i < (gm->nprocs) - 1; i++) {
+		printf("create threads\n");
+		exit(1);
 		Error = pthread_create(&__tid__[__threads__++], NULL, (void * (*)(void *))(StartRayTrace), NULL);
 		if (Error != 0) {
 			printf("Error in pthread_create().\n");
