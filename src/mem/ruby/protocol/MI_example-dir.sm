@@ -76,7 +76,7 @@ machine(MachineType:Directory, "Directory protocol")
 
     // Special buffer for memory requests. Kind of like the mandatory queue
     MessageBuffer *requestToMemory;
-    MessageBuffer *toCache_self_inv_queue, network="To", virtual_network="3",
+    MessageBuffer *toCache_self_inv_queue, network="To", virtual_network="0",
           vnet_type="request";
 
     // Special buffer for memory responses. Kind of like the mandatory queue
@@ -337,24 +337,28 @@ machine(MachineType:Directory, "Directory protocol")
             // Like enqueue, this takes a latency for the request.
          if(getDirectoryEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
             //wrong prediction
-            enqueue(forward_out, RequestMsg, 1) {
+            //assert(1==0);
+            enqueue(dir_to_cache_self, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
                 out_msg.Requestor := machineID;
                 out_msg.Destination.add(in_msg.Requestor);
                 out_msg.MessageSize := MessageSizeType:Control;
             }
+            //error("here");
             getDirectoryEntry(address).Self_Invalidators.remove(in_msg.Requestor);
          }
          else if(getDirectoryEntry(address).Self_Invalidators.count() > 0){
             //right prediction
-            enqueue(forward_out, RequestMsg, 1) {
+            //assert(1==0);
+            enqueue(dir_to_cache_self, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
                 out_msg.Requestor := machineID;
                 out_msg.Destination := getDirectoryEntry(address).Self_Invalidators;
                 out_msg.MessageSize := MessageSizeType:Control;
             }
+            //error("here2");
             getDirectoryEntry(address).Self_Invalidators.clear();
          }
             
@@ -476,8 +480,9 @@ machine(MachineType:Directory, "Directory protocol")
         assert(getDirectoryEntry(address).Owner.count() == 1);
         peek(request_in, RequestMsg) {
             if(getDirectoryEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
-                //wrong prediction
-                enqueue(forward_out, RequestMsg, 1) {
+                //wrong predictio
+                assert(1==0);
+                enqueue(dir_to_cache_self, RequestMsg, 1) {
                     out_msg.addr := address;
                     out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
                     out_msg.Requestor := machineID;
@@ -502,7 +507,8 @@ machine(MachineType:Directory, "Directory protocol")
         peek(request_in, RequestMsg) {
             if(getDirectoryEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
                 //wrong prediction
-                enqueue(forward_out, RequestMsg, 1) {
+                assert(1==0);
+                enqueue(dir_to_cache_self, RequestMsg, 1) {
                     out_msg.addr := address;
                     out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
                     out_msg.Requestor := machineID;

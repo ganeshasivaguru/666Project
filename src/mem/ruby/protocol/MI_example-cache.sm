@@ -112,9 +112,9 @@ machine(MachineType:L1Cache, "MSI cache")
                     desc="Modified. Read & write permissions. Owner of block";
 
         // States moving to Invalid
-        MI_A,   AccessPermission:Busy,
+        MI_A,   AccessPermission:Read_Write,//AccessPermission:Busy,
                     desc="Was modified, moving to I, waiting for put ack";
-        SI_A,   AccessPermission:Busy,
+        SI_A,   AccessPermission:Read_Only,//AccessPermission:Busy,
                     desc="Was shared, moving to I, waiting for put ack";
         II_A,   AccessPermission:Invalid,
                     desc="Sent valid data before receiving put ack. ";
@@ -429,11 +429,6 @@ machine(MachineType:L1Cache, "MSI cache")
                 if (in_msg.Type == CoherenceRequestType:SELF_INV_DIR_ACK) {
                     trigger(Event:Self_Inv_Dir_Ack, in_msg.addr, cache_entry, tbe);
                 } 
-                else if(in_msg.Type == CoherenceRequestType:SELF_INV_RIGHT_PREDICT){
-                    trigger(Event:Self_Inv_Correct, in_msg.addr, cache_entry, tbe);
-                }else if(in_msg.Type == CoherenceRequestType:SELF_INV_WRONG_PREDICT){
-                    trigger(Event:Self_Inv_Wrong, in_msg.addr, cache_entry, tbe);
-                }
                 else {
                     error("Unexpected forward message!");
                 }
@@ -497,12 +492,11 @@ machine(MachineType:L1Cache, "MSI cache")
                 //error("got something here");
                 Entry cache_entry := getCacheEntry(in_msg.addr);
                 TBE tbe := TBEs[in_msg.addr];
-                if (in_msg.Type == CoherenceRequestType:SELF_INV_DIR_ACK) {
-                    trigger(Event:Self_Inv_Dir_Ack, in_msg.addr, cache_entry, tbe);
-                } 
-                else if(in_msg.Type == CoherenceRequestType:SELF_INV_RIGHT_PREDICT){
+                if(in_msg.Type == CoherenceRequestType:SELF_INV_RIGHT_PREDICT){
+                    //error("got the predict");
                     trigger(Event:Self_Inv_Correct, in_msg.addr, cache_entry, tbe);
                 }else if(in_msg.Type == CoherenceRequestType:SELF_INV_WRONG_PREDICT){
+                    //error("got the predict");
                     trigger(Event:Self_Inv_Wrong, in_msg.addr, cache_entry, tbe);
                 }
                 else {
@@ -698,7 +692,7 @@ machine(MachineType:L1Cache, "MSI cache")
     // Responses to CPU requests (e.g., hits and store acks)
 
     action(loadHit, "Lh", desc="Load hit") {
-        LTP.debug_print();
+        //LTP.debug_print();
         assert(is_valid(cache_entry));
         // Set this entry as the most recently used for the replacement policy
         cacheMemory.setMRU(cache_entry);
@@ -859,14 +853,14 @@ machine(MachineType:L1Cache, "MSI cache")
 
     transition({I, IM_AD, M, IS_D, S}, Self_Inv_Wrong){
         decreaseStrength;
-        popForwardQueue;
-        //popDirSelfInvQueue;
+        //popForwardQueue;
+        popDirSelfInvQueue;
     }
 
-    transition({I, IM_AD}, Self_Inv_Correct){
+    transition({I, IM_AD, IS_D}, Self_Inv_Correct){
         increaseStrength;
-        popForwardQueue;
-        //popDirSelfInvQueue;
+        //popForwardQueue;
+        popDirSelfInvQueue;
     }
     transition(I, Inv){
         //self inv must have invalidated before so just send ack

@@ -175,7 +175,7 @@ class Ocean_contig(Process):
 
 class Ocean_noncontig(Process):
     executable = args.rootdir + '/apps/ocean/non_contiguous_partitions/OCEAN'
-    cmd = ['OCEAN', '-p', str(args.num_cpus)]
+    cmd = ['OCEAN', '-n130 -s -p', str(args.num_cpus)]
     cwd = args.rootdir + '/apps/ocean/non_contiguous_partitions'
 
 class Raytrace(Process):

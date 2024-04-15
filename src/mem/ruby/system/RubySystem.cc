@@ -536,6 +536,7 @@ RubySystem::functionalRead(PacketPtr pkt)
                  access_perm == AccessPermission_NotPresent)
             num_invalid++;
     }
+    //inform("RO = %d, RW = %d, busy=%d, stale=%d, backing=%d, invalid=%d\n",num_ro,num_rw,num_busy,num_maybe_stale,num_backing_store,num_invalid );
 
     // This if case is meant to capture what happens in a Broadcast/Snoop
     // protocol where the block does not exist in the cache hierarchy. You
@@ -593,10 +594,7 @@ RubySystem::functionalRead(PacketPtr pkt)
                 return true;
         }
     }
-    if(address == 0x954630 || address == 0x426540 || address == 0x42656c){
-        //checked it out and this is read in the middle of 2 invalid transistions
-        return true;
-    }
+
 
     return false;
 }
