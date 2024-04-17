@@ -93,6 +93,9 @@ MakeInclude('slicc_interface/AbstractCacheEntry.hh')
 MakeInclude('slicc_interface/Message.hh')
 MakeInclude('slicc_interface/RubyRequest.hh')
 
+#if env['PROTOCOL'] == 'MSI':
+MakeInclude('system/SelfInvFiFo.hh')
+
 # External types
 MakeInclude('common/Address.hh')
 MakeInclude('common/BoolVec.hh')
@@ -107,6 +110,7 @@ MakeInclude('common/WriteMask.hh')
 MakeInclude('network/MessageBuffer.hh')
 MakeInclude('structures/CacheMemory.hh')
 MakeInclude('structures/DirectoryMemory.hh')
+
 MakeInclude('structures/PerfectCacheMemory.hh')
 MakeInclude('structures/PersistentTable.hh')
 MakeInclude('structures/RubyPrefetcher.hh')
@@ -117,6 +121,7 @@ if env['PROTOCOL'] == 'CHI':
 MakeInclude('structures/TBETable.hh')
 MakeInclude('structures/TimerTable.hh')
 MakeInclude('structures/WireBuffer.hh')
+
 MakeInclude('system/DMASequencer.hh')
 MakeInclude('system/Sequencer.hh')
 

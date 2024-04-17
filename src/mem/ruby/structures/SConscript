@@ -43,6 +43,7 @@ Import('*')
 if env['CONF']['PROTOCOL'] == 'None':
     Return()
 
+
 SimObject('RubyCache.py', sim_objects=['RubyCache'])
 SimObject('DirectoryMemory.py', sim_objects=['RubyDirectoryMemory'])
 SimObject('RubyPrefetcher.py', sim_objects=['RubyPrefetcher'])

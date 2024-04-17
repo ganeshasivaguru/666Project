@@ -72,6 +72,7 @@ structure(InPort, external = "yes", primitive="yes") {
   bool isStallMapEmpty();
   int getStallMapSize();
   bool hasStalledMsg(Addr addr);
+  bool getSize(Tick curTime);
 }
 
 external_type(NodeID, default="0", primitive="yes");
@@ -185,6 +186,15 @@ structure(AbstractCacheEntry, primitive="yes", external = "yes") {
   void changePermission(AccessPermission);
 }
 
+structure (SelfInvFiFo, external = "yes") {
+  bool isFull();
+  void pushEntry(Addr);
+  Addr popEntry();
+  int getcurrentHead();
+  Addr getAddrofCurrentHead();
+  void printContents();
+}
+
 structure (DirectoryMemory, external = "yes") {
   AbstractCacheEntry allocate(Addr, AbstractCacheEntry);
   AbstractCacheEntry lookup(Addr);
@@ -225,6 +235,8 @@ structure (CacheMemory, external = "yes") {
   void profilePrefetchHit();
   void profilePrefetchMiss();
 }
+
+
 
 structure (WireBuffer, inport="yes", outport="yes", external = "yes") {
 

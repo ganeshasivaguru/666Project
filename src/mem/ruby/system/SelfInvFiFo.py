@@ -1,6 +1,4 @@
-# -*- mode:python -*-
-
-# Copyright (c) 2020 ARM Limited
+# Copyright (c) 2017 ARM Limited
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -12,7 +10,7 @@
 # unmodified and in its entirety in all distributions of the software,
 # modified or unmodified, in source code or in binary form.
 #
-# Copyright (c) 2009 The Hewlett-Packard Development Company
+# Copyright (c) 2009 Advanced Micro Devices, Inc.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -38,36 +36,11 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Import('*')
+from m5.params import *
+from m5.proxy import *
+from m5.SimObject import SimObject
 
-if env['CONF']['PROTOCOL'] == 'None':
-    Return()
-
-env.Append(CPPDEFINES=['PROTOCOL_' + env['CONF']['PROTOCOL']])
-
-if env['CONF']['PROTOCOL'] in env['NEED_PARTIAL_FUNC_READS']:
-    env.Append(CPPDEFINES=['PARTIAL_FUNC_READS'])
-
-if env['CONF']['BUILD_GPU']:
-    SimObject('GPUCoalescer.py', sim_objects=['RubyGPUCoalescer'])
-SimObject('RubySystem.py', sim_objects=['RubySystem'])
-SimObject('Sequencer.py', sim_objects=[
-    'RubyPort', 'RubyPortProxy', 'RubySequencer', 'RubyHTMSequencer',
-    'DMASequencer'])
-if env['CONF']['BUILD_GPU']:
-    SimObject('VIPERCoalescer.py', sim_objects=['VIPERCoalescer'])
-
-SimObject('SelfInvFiFo.py', sim_objects=['SelfInvFiFo'])
-
-Source('CacheRecorder.cc')
-Source('DMASequencer.cc')
-if env['CONF']['BUILD_GPU']:
-    Source('GPUCoalescer.cc')
-Source('HTMSequencer.cc')
-Source('RubyPort.cc')
-Source('RubyPortProxy.cc')
-Source('RubySystem.cc')
-Source('Sequencer.cc')
-if env['CONF']['BUILD_GPU']:
-    Source('VIPERCoalescer.cc')
-Source('SelfInvFiFo.cc')
+class SelfInvFiFo(SimObject):
+    type = 'SelfInvFiFo'
+    cxx_class = 'gem5::ruby::SelfInvFiFo'
+    cxx_header = "mem/ruby/system/SelfInvFiFo.hh"
