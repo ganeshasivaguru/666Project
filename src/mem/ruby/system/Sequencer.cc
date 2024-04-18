@@ -304,6 +304,7 @@ RequestStatus
 Sequencer::insertRequest(PacketPtr pkt, RubyRequestType primary_type,
                          RubyRequestType secondary_type)
 {
+    //inform("insert request seq\n");
     // See if we should schedule a deadlock check
     if (!deadlockCheckEvent.scheduled() &&
         drainState() != DrainState::Draining) {
@@ -754,6 +755,7 @@ Sequencer::empty() const
 RequestStatus
 Sequencer::makeRequest(PacketPtr pkt)
 {
+    //inform("make request-----------\n");
     // HTM abort signals must be allowed to reach the Sequencer
     // the same cycle they are issued. They cannot be retried.
     if ((m_outstanding_count >= m_max_outstanding_requests) &&

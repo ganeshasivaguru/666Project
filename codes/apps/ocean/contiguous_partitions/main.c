@@ -60,7 +60,7 @@ pthread_mutex_t __intern__;
 
 
 #define DEFAULT_N      258
-#define DEFAULT_P        1
+#define DEFAULT_P        32
 #define DEFAULT_E        1e-7
 #define DEFAULT_T    28800.0
 #define DEFAULT_R    20000.0

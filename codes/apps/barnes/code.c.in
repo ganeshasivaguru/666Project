@@ -90,7 +90,7 @@ string defv[] = {                 /* DEFAULT PARAMETER VALUES              */
     "tstop=0.075",                 /* time to stop integration              */
     "dtout=0.25",                 /* data-output interval                  */
 
-    "NPROC=1",                    /* number of processors                  */
+    "NPROC=32",                    /* number of processors                  */
 };
 
 /* The more complicated 3D case */

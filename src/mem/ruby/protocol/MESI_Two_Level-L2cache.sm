@@ -29,7 +29,7 @@
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
  * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * Exclusive OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
@@ -64,6 +64,11 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   MessageBuffer * responseToL2Cache, network="From", virtual_network="1",
     vnet_type="response";  // a local L1 || Memory -> this L2 bank
+
+  MessageBuffer *requestFromCache_self_inv, network="From", virtual_network="3",
+    vnet_type="request";
+  MessageBuffer *toCache_self_inv_queue, network="To", virtual_network="3",
+    vnet_type="request";
 {
   // STATES
   state_declaration(State, desc="L2 Cache states", default="L2Cache_State_NP") {
@@ -126,6 +131,17 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     Exclusive_Unblock, desc="Unblock from L1 requestor";
 
     MEM_Inv, desc="Invalidation from directory";
+
+    SELF_INV_LOAD, desc="self_invalidation on load hit";
+    SELF_INV_DIRTY, desc="self_invalidation";
+    SELF_INV_DIR_ACK, desc="directory acked self inv";
+    SELF_INV_WRONG_PREDICT, desc="tell all self invalidators to decrease";
+    SELF_INV_RIGHT_PREDICT, desc="prediction was right so strengthen";
+    //SELF_INV_DIR_ACK_DIRTY, desc="directory acked self inv";
+    Self_Inv_Only_Sharer, desc="self inv clean and only sharer";
+    Self_Inv, desc="self inv clean ";
+    Self_Inv_Dirty, desc="sef inv dirty";
+    Dummy_Self_Inv, desc="other requestors got in way so need to send ack and move on";
   }
 
   // TYPES
@@ -137,6 +153,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     MachineID Exclusive,          desc="Exclusive holder of block";
     DataBlock DataBlk,       desc="data for the block";
     bool Dirty, default="false", desc="data is dirty";
+    NetDest Self_Invalidators,  desc="processors that have self invalidated this block";
   }
 
   // TBE fields
@@ -299,6 +316,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   out_port(L1RequestL2Network_out, RequestMsg, L1RequestFromL2Cache);
   out_port(DirRequestL2Network_out, RequestMsg, DirRequestFromL2Cache);
   out_port(responseL2Network_out, ResponseMsg, responseFromL2Cache);
+  out_port(dir_to_cache_self, RequestMsg, toCache_self_inv_queue);
 
 
   in_port(L1unblockNetwork_in, ResponseMsg, unblockToL2Cache, rank = 2) {
@@ -404,11 +422,74 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
+  in_port(self_inv_in, RequestMsg, requestFromCache_self_inv, rank = 3) {
+      if (self_inv_in.isReady(clockEdge())) {
+          peek(self_inv_in, RequestMsg) {
+              //error("yay");
+              TBE tbe := TBEs[in_msg.addr];
+              Entry entry := getCacheEntry(in_msg.addr); 
+              if(in_msg.Type == CoherenceRequestType:SELF_INV_LOAD){
+                  if(entry.Sharers.count() == 1 && entry.Sharers.isElement(in_msg.Requestor)){
+                      trigger(Event:Self_Inv_Only_Sharer, in_msg.addr,entry, tbe);
+                  }
+                  else{
+                      trigger(Event:Self_Inv, in_msg.addr,entry, tbe);
+                  }
+              }
+              else if(in_msg.Type == CoherenceRequestType:SELF_INV_DIRTY){
+                  if(getCacheEntry(in_msg.addr).Exclusive == in_msg.Requestor){
+                      trigger(Event:Self_Inv_Dirty, in_msg.addr,entry, tbe);
+                  }
+                  else{
+                      trigger(Event:Self_Inv, in_msg.addr,entry, tbe);
+                  }
+              }
+              else {
+                  error("Unexpected message type.");
+              }
+          }
+      }
+  }
+
 
   // ACTIONS
-
+  action(sendSelfInvAck, "self", desc="Send the self inv ack") {
+      peek(self_inv_in, RequestMsg) {
+          //assert(1==0);
+          enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+              out_msg.addr := address;
+              out_msg.Type := CoherenceRequestType:SELF_INV_DIR_ACK;
+              out_msg.Requestor := machineID;
+              out_msg.Destination.add(in_msg.Requestor);
+              out_msg.MessageSize := MessageSizeType:Control;
+          }
+      }
+  }
   action(a_issueFetchToMemory, "a", desc="fetch data from memory") {
     peek(L1RequestL2Network_in, RequestMsg) {
+        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+            //wrong prediction
+            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+        } //not sure about below
+        else if(getCacheEntry(address).Self_Invalidators.count() > 0){
+        //right prediction
+            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination := getCacheEntry(address).Self_Invalidators;
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getCacheEntry(address).Self_Invalidators.clear();
+        }
+
       enqueue(DirRequestL2Network_out, RequestMsg, l2_request_latency) {
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:GETS;
@@ -416,9 +497,30 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         out_msg.Destination.add(mapAddressToMachine(address, MachineType:Directory));
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.AccessMode := in_msg.AccessMode;
-        out_msg.Prefetch := in_msg.Prefetch;
       }
     }
+  }
+
+  action(addReqToInvalidators, "add_inv", desc="add requestor to invalidators") {
+      peek(self_inv_in, RequestMsg) {
+          getCacheEntry(address).Self_Invalidators.add(in_msg.Requestor);
+      }
+  }
+
+  action(writeDatafromL1Cache_self_inv, "w_self", desc="Write data to memory") {
+      peek(self_inv_in, RequestMsg) {
+        assert(is_valid(cache_entry));
+        if (in_msg.Dirty) {
+          cache_entry.DataBlk := in_msg.DataBlk;
+          cache_entry.Dirty := in_msg.Dirty;
+        }
+      }
+  }
+
+  action(removeReqFromSharers_self_inv, "rS_self", desc="Remove requestor from sharers") {
+      peek(self_inv_in, RequestMsg) {
+          getCacheEntry(address).Sharers.remove(in_msg.Requestor);
+      }
   }
 
   action(b_forwardRequestToExclusive, "b", desc="Forward request to the exclusive L1") {
@@ -431,6 +533,46 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         out_msg.Destination.add(cache_entry.Exclusive);
         out_msg.MessageSize := MessageSizeType:Request_Control;
       }
+    }
+  }
+  action(b_forwardRequestToExclusive_not_instr, "b_not_instr", desc="Forward request to the exclusive L1") {
+    peek(L1RequestL2Network_in, RequestMsg) {
+        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+            //wrong prediction
+            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+
+        }
+        if(getCacheEntry(address).Self_Invalidators.isElement(cache_entry.Exclusive)||(getCacheEntry(address).Sharers.count() == 0)){
+          //don't forward the get
+          enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
+            assert(is_valid(cache_entry));
+            out_msg.addr := address;
+            out_msg.Type := CoherenceResponseType:DATA;
+            out_msg.Sender := machineID;
+            out_msg.Destination.add(in_msg.Requestor);
+            out_msg.DataBlk := cache_entry.DataBlk;
+            out_msg.MessageSize := MessageSizeType:Response_Data;
+            out_msg.AckCount := 0;
+          }
+        }
+        else{
+          enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+            assert(is_valid(cache_entry));
+            out_msg.addr := address;
+            out_msg.Type := in_msg.Type;
+            out_msg.Requestor := in_msg.Requestor;
+            out_msg.Destination.add(cache_entry.Exclusive);
+            out_msg.MessageSize := MessageSizeType:Request_Control;
+          }
+        }
+
     }
   }
 
@@ -472,6 +614,37 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   action(d_sendDataToRequestor, "d", desc="Send data from cache to reqeustor") {
     peek(L1RequestL2Network_in, RequestMsg) {
+    
+      enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
+        assert(is_valid(cache_entry));
+        out_msg.addr := address;
+        out_msg.Type := CoherenceResponseType:DATA;
+        out_msg.Sender := machineID;
+        out_msg.Destination.add(in_msg.Requestor);
+        out_msg.DataBlk := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:Response_Data;
+
+        out_msg.AckCount := 0 - cache_entry.Sharers.count();
+        if (cache_entry.Sharers.isElement(in_msg.Requestor)) {
+          out_msg.AckCount := out_msg.AckCount + 1;
+        }
+      }
+    }
+  }
+
+action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cache to reqeustor") {
+    peek(L1RequestL2Network_in, RequestMsg) {
+      if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+          //wrong prediction
+          enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+              out_msg.addr := address;
+              out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+              out_msg.Requestor := machineID;
+              out_msg.Destination.add(in_msg.Requestor);
+              out_msg.MessageSize := MessageSizeType:Control;
+          }
+          getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+      }
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
         out_msg.addr := address;
@@ -491,6 +664,18 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   action(dd_sendExclusiveDataToRequestor, "dd", desc="Send data from cache to reqeustor") {
     peek(L1RequestL2Network_in, RequestMsg) {
+        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+            //wrong prediction
+            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+        }
+
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
         out_msg.addr := address;
@@ -510,6 +695,31 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   action(ds_sendSharedDataToRequestor, "ds", desc="Send data from cache to reqeustor") {
     peek(L1RequestL2Network_in, RequestMsg) {
+      enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
+        assert(is_valid(cache_entry));
+        out_msg.addr := address;
+        out_msg.Type := CoherenceResponseType:DATA;
+        out_msg.Sender := machineID;
+        out_msg.Destination.add(in_msg.Requestor);
+        out_msg.DataBlk := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:Response_Data;
+        out_msg.AckCount := 0;
+      }
+    }
+  }
+  action(ds_sendSharedDataToRequestor_non_instr, "ds_not_instr", desc="Send data from cache to reqeustor") {
+    peek(L1RequestL2Network_in, RequestMsg) {
+        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+            //wrong prediction
+            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+        } 
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
         out_msg.addr := address;
@@ -657,6 +867,16 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
+  action(mr_writeDataToCacheFromRequest_self, "mr_self", desc="Write data from response queue to cache") {
+    peek(self_inv_in, RequestMsg) {
+      assert(is_valid(cache_entry));
+      if (in_msg.Dirty) {
+        cache_entry.DataBlk := in_msg.DataBlk;
+        cache_entry.Dirty := in_msg.Dirty;
+      }
+    }
+  }
+
   action(q_updateAck, "q", desc="update pending ack count") {
     peek(responseL2Network_in, ResponseMsg) {
       assert(is_valid(tbe));
@@ -678,6 +898,25 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   action(ss_recordGetSL1ID, "\s", desc="Record L1 GetS for load response") {
     peek(L1RequestL2Network_in, RequestMsg) {
       assert(is_valid(tbe));
+      tbe.L1_GetS_IDs.add(in_msg.Requestor);
+    }
+  }
+
+  action(ss_recordGetSL1ID_non_instr, "\s_no_instr", desc="Record L1 GetS for load response") {
+    peek(L1RequestL2Network_in, RequestMsg) {
+      assert(is_valid(tbe));
+        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+          //wrong prediction
+          enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+              out_msg.addr := address;
+              out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+              out_msg.Requestor := machineID;
+              out_msg.Destination.add(in_msg.Requestor);
+              out_msg.MessageSize := MessageSizeType:Control;
+          }
+          getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+        }
+
       tbe.L1_GetS_IDs.add(in_msg.Requestor);
     }
   }
@@ -731,13 +970,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-  action(uu_profileMiss, "\um", desc="Profile the demand miss") {
-    L2cache.profileDemandMiss();
-  }
 
-  action(uu_profileHit, "\uh", desc="Profile the demand hit") {
-    L2cache.profileDemandHit();
-  }
 
   action(nn_addSharer, "\n", desc="Add L1 sharer to list") {
     peek(L1RequestL2Network_in, RequestMsg) {
@@ -768,7 +1001,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-  action(mm_markExclusive, "\m", desc="set the exclusive owner") {
+  action(mm_markExclusive, "\m", desc="set the exclusive Exclusive") {
     peek(L1RequestL2Network_in, RequestMsg) {
       assert(is_valid(cache_entry));
       cache_entry.Sharers.clear();
@@ -777,7 +1010,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-  action(mmu_markExclusiveFromUnblock, "\mu", desc="set the exclusive owner") {
+  action(mmu_markExclusiveFromUnblock, "\mu", desc="set the exclusive Exclusive") {
     peek(L1unblockNetwork_in, ResponseMsg) {
       assert(is_valid(cache_entry));
       cache_entry.Sharers.clear();
@@ -790,12 +1023,19 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     stall_and_wait(L1RequestL2Network_in, address);
   }
 
+  action(zz_stallAndWaitSelfInv, "zz_self", desc="recycle L1 request queue") {
+    stall_and_wait(self_inv_in, address);
+  }
+
   action(zn_recycleResponseNetwork, "zn", desc="recycle memory request") {
     responseL2Network_in.recycle(clockEdge(), cyclesToTicks(recycle_latency));
   }
 
   action(kd_wakeUpDependents, "kd", desc="wake-up dependents") {
     wakeUpBuffers(address);
+  }
+  action(popSelfInv, "p_self", desc="Pop the self_inv queue") {
+    self_inv_in.dequeue(clockEdge());
   }
 
   //*****************************************************
@@ -834,15 +1074,42 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     zz_stallAndWaitL1RequestQueue;
   }
 
+  transition(SS, {Self_Inv}){
+    removeReqFromSharers_self_inv;
+    addReqToInvalidators;
+    sendSelfInvAck;
+    popSelfInv;
+  }
+  transition(SS, Self_Inv_Only_Sharer, M) {
+      removeReqFromSharers_self_inv;
+      addReqToInvalidators;
+      sendSelfInvAck;
+      popSelfInv;
+  }
+
+  transition({M, MT}, Self_Inv){
+    addReqToInvalidators;
+    removeReqFromSharers_self_inv;
+    sendSelfInvAck;
+    popSelfInv;
+  }
+  transition(MT, {Self_Inv_Dirty, Self_Inv_Only_Sharer}, M) {
+
+    ll_clearSharers;
+    addReqToInvalidators;
+    mr_writeDataToCacheFromRequest_self;
+    sendSelfInvAck;
+    popSelfInv;
+  }
 
   transition(NP, L1_GETS,  ISS) {
     qq_allocateL2CacheBlock;
     ll_clearSharers;
     nn_addSharer;
     i_allocateTBE;
-    ss_recordGetSL1ID;
+    ss_recordGetSL1ID_non_instr;
     a_issueFetchToMemory;
-    uu_profileMiss;
+    //uu_profileMiss;
     jj_popL1RequestQueue;
   }
 
@@ -853,7 +1120,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     i_allocateTBE;
     ss_recordGetSL1ID;
     a_issueFetchToMemory;
-    uu_profileMiss;
+    //uu_profileMiss;
     jj_popL1RequestQueue;
   }
 
@@ -864,7 +1131,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     i_allocateTBE;
     xx_recordGetXL1ID;
     a_issueFetchToMemory;
-    uu_profileMiss;
+    //uu_profileMiss;
     jj_popL1RequestQueue;
   }
 
@@ -893,13 +1160,17 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     o_popIncomingResponseQueue;
   }
 
-  transition({IS, ISS}, {L1_GETS, L1_GET_INSTR}, IS) {
+  transition({IS, ISS}, {L1_GETS}, IS) {
     nn_addSharer;
-    ss_recordGetSL1ID;
-    uu_profileMiss;
+    ss_recordGetSL1ID_non_instr;
     jj_popL1RequestQueue;
   }
 
+  transition({IS, ISS}, {L1_GET_INSTR}, IS) {
+    nn_addSharer;
+    ss_recordGetSL1ID;
+    jj_popL1RequestQueue;
+  }
   transition({IS, ISS}, L1_GETX) {
     zz_stallAndWaitL1RequestQueue;
   }
@@ -909,21 +1180,30 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   }
 
   // transitions from SS
-  transition(SS, {L1_GETS, L1_GET_INSTR}) {
+  transition(SS, {L1_GETS}) {
+    //ds_sendSharedDataToRequestor;
+    ds_sendSharedDataToRequestor_non_instr;
+    nn_addSharer;
+    set_setMRU;
+    //uu_profileHit;
+    jj_popL1RequestQueue;
+  }
+  
+  transition(SS, { L1_GET_INSTR}) {
     ds_sendSharedDataToRequestor;
     nn_addSharer;
     set_setMRU;
-    uu_profileHit;
+    //uu_profileHit;
     jj_popL1RequestQueue;
   }
 
-
   transition(SS, L1_GETX, SS_MB) {
-    d_sendDataToRequestor;
+    d_sendDataToRequestor_not_instr;
+    //d_sendDataToRequestor;
     // fw_sendFwdInvToSharers;
     fwm_sendFwdInvToSharersMinusRequestor;
     set_setMRU;
-    uu_profileHit;
+    //uu_profileHit;
     jj_popL1RequestQueue;
   }
 
@@ -931,7 +1211,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     fwm_sendFwdInvToSharersMinusRequestor;
     ts_sendInvAckToUpgrader;
     set_setMRU;
-    uu_profileHit;
+    //uu_profileHit;
     jj_popL1RequestQueue;
   }
 
@@ -949,9 +1229,10 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
 
   transition(M, L1_GETX, MT_MB) {
-    d_sendDataToRequestor;
+    d_sendDataToRequestor_not_instr;
+    //d_sendDataToRequestor;
     set_setMRU;
-    uu_profileHit;
+    //uu_profileHit;
     jj_popL1RequestQueue;
   }
 
@@ -959,14 +1240,14 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     d_sendDataToRequestor;
     nn_addSharer;
     set_setMRU;
-    uu_profileHit;
+    //uu_profileHit;
     jj_popL1RequestQueue;
   }
 
   transition(M, L1_GETS, MT_MB) {
     dd_sendExclusiveDataToRequestor;
     set_setMRU;
-    uu_profileHit;
+    //uu_profileHit;
     jj_popL1RequestQueue;
   }
 
@@ -986,16 +1267,22 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   // transitions from MT
 
   transition(MT, L1_GETX, MT_MB) {
-    b_forwardRequestToExclusive;
-    uu_profileMiss;
+    b_forwardRequestToExclusive_not_instr;
+    //uu_profileMiss;
     set_setMRU;
     jj_popL1RequestQueue;
   }
 
 
-  transition(MT, {L1_GETS, L1_GET_INSTR}, MT_IIB) {
+  transition(MT, {L1_GETS}, MT_IIB) {
+    b_forwardRequestToExclusive_not_instr;
+    //uu_profileMiss;
+    set_setMRU;
+    jj_popL1RequestQueue;
+  }
+  transition(MT, {L1_GET_INSTR}, MT_IIB) {
     b_forwardRequestToExclusive;
-    uu_profileMiss;
+    //uu_profileMiss;
     set_setMRU;
     jj_popL1RequestQueue;
   }
@@ -1018,6 +1305,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     t_sendWBAck;
     jj_popL1RequestQueue;
   }
+
+
 
   transition({SS_MB,MT_MB}, Exclusive_Unblock, MT) {
     // update actual directory
@@ -1096,7 +1385,24 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   transition({MT_MB,SS_MB}, {L1_PUTX, L1_PUTX_old}) {
     zz_stallAndWaitL1RequestQueue;
   }
+  //unsure about this
+  transition({MT_MB,SS_MB}, {Self_Inv}) {
+    //zz_stallAndWaitSelfInv;
+    removeReqFromSharers_self_inv;
+    addReqToInvalidators;
+    sendSelfInvAck;
+    popSelfInv;
+  }
+  //unsure
+  transition({MT_MB,SS_MB}, { Self_Inv_Dirty}) {
+    //zz_stallAndWaitSelfInv;
 
+    ll_clearSharers;
+    addReqToInvalidators;
+    mr_writeDataToCacheFromRequest_self;
+    sendSelfInvAck;
+    popSelfInv;
+  }
   transition(S_I, Ack) {
     q_updateAck;
     o_popIncomingResponseQueue;

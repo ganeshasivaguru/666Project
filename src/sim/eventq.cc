@@ -203,6 +203,7 @@ EventQueue::serviceOne()
     event->flags.clear(Event::Scheduled);
 
     if (next) {
+        //inform("in service next\n");
         // update the next bin pointer since it could be stale
         next->nextBin = head->nextBin;
 
@@ -216,6 +217,7 @@ EventQueue::serviceOne()
 
     // handle action
     if (!event->squashed()) {
+        //inform("------------------ not squashed ----------\n");
         // forward current cycle to the time when this event occurs.
         setCurTick(event->when());
         if (debug::Event)

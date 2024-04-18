@@ -291,6 +291,7 @@ SimpleMemory::MemoryPort::recvAtomicBackdoor(
 void
 SimpleMemory::MemoryPort::recvFunctional(PacketPtr pkt)
 {
+    inform("in simple mem\n");
     mem.recvFunctional(pkt);
 }
 

@@ -55,7 +55,12 @@ def create_system(options, full_system, system, dma_ports, bootmem,
     #
     l1_cntrl_nodes = []
     dma_cntrl_nodes = []
-
+    # Set up the system
+    system.mem_mode = 'timing'               # Use timing accesses
+    #system.mem_ranges = [AddrRange('512MB')] # Create an address range
+    # Create a simple memory controller and connect it to the membus
+    #system.mem_ctrl = SimpleMemory(latency="50ns", bandwidth="0GB/s")
+    #system.mem_ctrl.range = system.mem_ranges[0]
     #
     # Must create the individual controllers before the network to ensure the
     # controller constructors are called before the network constructor
@@ -192,33 +197,29 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         dir_cntrl.requestFromCache_self_inv.in_port = ruby_system.network.out_port
 
     for i, dma_port in enumerate(dma_ports):
-        #
         # Create the Ruby objects associated with the dma controller
-        #
-        dma_seq = DMASequencer(version = i,
-                               ruby_system = ruby_system)
-
-        dma_cntrl = DMA_Controller(version = i,
-                                   dma_sequencer = dma_seq,
+        dma_seq = DMASequencer(version = i, ruby_system = ruby_system,
+                               in_ports = dma_port)
+        dma_cntrl = DMA_Controller(version = i, dma_sequencer = dma_seq,
                                    transitions_per_cycle = options.ports,
                                    ruby_system = ruby_system)
-
         exec("ruby_system.dma_cntrl%d = dma_cntrl" % i)
-        exec("ruby_system.dma_cntrl%d.dma_sequencer.in_ports = dma_port" % i)
         dma_cntrl_nodes.append(dma_cntrl)
 
-        # Connect the directory controllers and the network
+        # Connect the dma controller to the network
         dma_cntrl.mandatoryQueue = MessageBuffer()
-        dma_cntrl.requestToDir = MessageBuffer()
-        dma_cntrl.requestToDir.out_port = ruby_system.network.in_port
         dma_cntrl.responseFromDir = MessageBuffer(ordered = True)
         dma_cntrl.responseFromDir.in_port = ruby_system.network.out_port
-
-    all_cntrls = l1_cntrl_nodes + dir_cntrl_nodes + dma_cntrl_nodes
+        dma_cntrl.requestToDir = MessageBuffer()
+        dma_cntrl.requestToDir.out_port = ruby_system.network.in_port
+    all_cntrls = l1_cntrl_nodes + \
+                 dir_cntrl_nodes + \
+                 dma_cntrl_nodes
 
     # Create the io controller and the sequencer
     if full_system:
-        io_seq = DMASequencer(version=len(dma_ports), ruby_system=ruby_system)
+        io_seq = DMASequencer(version = len(dma_ports),
+                              ruby_system = ruby_system)
         ruby_system._io_port = io_seq
         io_controller = DMA_Controller(version = len(dma_ports),
                                        dma_sequencer = io_seq,
@@ -227,13 +228,13 @@ def create_system(options, full_system, system, dma_ports, bootmem,
 
         # Connect the dma controller to the network
         io_controller.mandatoryQueue = MessageBuffer()
-        io_controller.requestToDir = MessageBuffer()
-        io_controller.requestToDir.out_port = ruby_system.network.in_port
         io_controller.responseFromDir = MessageBuffer(ordered = True)
         io_controller.responseFromDir.in_port = ruby_system.network.out_port
+        io_controller.requestToDir = MessageBuffer()
+        io_controller.requestToDir.out_port = ruby_system.network.in_port
 
         all_cntrls = all_cntrls + [io_controller]
 
-    ruby_system.network.number_of_virtual_networks = 5
+    ruby_system.network.number_of_virtual_networks = 3
     topology = create_topology(all_cntrls, options)
     return (cpu_sequencers, mem_dir_cntrl_nodes, topology)

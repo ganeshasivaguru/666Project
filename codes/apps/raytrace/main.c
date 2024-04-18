@@ -137,7 +137,7 @@ UINT	empty_masks[sizeof(UINT)*8];
 UINT	nonempty_masks[sizeof(UINT)*8];
 
 CHAR	*ProgName     = "RAYTRACE";          /* The program name.                 */
-INT	nprocs	      = 1;		/* The number of processors to use.  */
+INT	nprocs	      = 32;		/* The number of processors to use.  */
 INT	MaxGlobMem    = 32;		/* Maximum global memory needed (MB).*/
 INT	NumSubRays    = 1;		/* Number of subpixel samples to calc*/
 INT dostats = 0;

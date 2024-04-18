@@ -278,10 +278,11 @@ doSimLoop(EventQueue *eventq)
         assert(!eventq->empty());
         assert(curTick() <= eventq->nextTick() &&
                "event scheduled in the past");
-
+        //inform("in here\n");
         if (async_event && testAndClearAsyncEvent()) {
             // Take the event queue lock in case any of the service
             // routines want to schedule new events.
+            //inform("went inside\n");
             std::lock_guard<EventQueue> lock(*eventq);
             if (async_statdump || async_statreset) {
                 statistics::schedStatEvent(async_statdump, async_statreset);

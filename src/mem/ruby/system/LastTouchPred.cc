@@ -231,9 +231,9 @@ LastTouchPred::check_self_invalidation(Addr block_tag){
         }
 
     }
-    /*if (block_tag == 0x400){
+    if (block_tag == 0x400){
        LT_match = 1;
-    }*/
+    }
 
     //inform("match = %d\n",LT_match);
     if (LT_match){

@@ -336,6 +336,7 @@ machine(MachineType:L1Cache, "MSI cache")
     // connected to for responses from other caches and the directory.
     in_port(response_in, ResponseMsg, responseFromDirOrSibling) {
         if (response_in.isReady(clockEdge())) {
+            //LTP.debug_print();
             // Peek is a special function. Any code inside a peek statement has
             // a special variable declared and populated: in_msg. This contains
             // the message (of type RequestMsg in this case) at the head.
@@ -398,7 +399,7 @@ machine(MachineType:L1Cache, "MSI cache")
 
     // Forward requests for other caches.
     in_port(forward_in, RequestMsg, forwardFromDir) {
-        if(!LTP.blocks_to_be_self_inv_empty()){
+        /*if(!LTP.blocks_to_be_self_inv_empty()){
             //do self inv instead
             //pop the front
             Addr address := LTP.pop_self_inv();
@@ -406,7 +407,8 @@ machine(MachineType:L1Cache, "MSI cache")
             TBE tbe := TBEs[address];
             trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
         }
-        else if (forward_in.isReady(clockEdge())) {
+        else*/ if (forward_in.isReady(clockEdge())) {
+            //LTP.debug_print();
             peek(forward_in, RequestMsg) {
                 // Grab the entry and tbe if they exist.
                 Entry cache_entry := getCacheEntry(in_msg.addr);
@@ -439,7 +441,7 @@ machine(MachineType:L1Cache, "MSI cache")
     // The "mandatory queue" is the port/queue from the CPU or other processor.
     // This is *always* a RubyRequest
     in_port(mandatory_in, RubyRequest, mandatoryQueue) {
-        if(!LTP.blocks_to_be_self_inv_empty()){
+        /*if(!LTP.blocks_to_be_self_inv_empty()){
             //do self inv instead
             //pop the front
             Addr address := LTP.pop_self_inv();
@@ -447,7 +449,8 @@ machine(MachineType:L1Cache, "MSI cache")
             TBE tbe := TBEs[address];
             trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
         }
-        else if (mandatory_in.isReady(clockEdge())) {
+        else */if (mandatory_in.isReady(clockEdge())) {
+          //LTP.debug_print();
             // Block all requests if there is already an outstanding request
             // that has the same line address. This is unblocked when we
             // finally respond to the request.
@@ -812,6 +815,7 @@ machine(MachineType:L1Cache, "MSI cache")
     // Stalling actions
 
     action(stall, "z", desc="Stall the incoming request") {
+        //LTP.debug_print();
         // Do nothing. However, the transition must have some action to be
         // valid which is why this is needed.
         // NOTE: There are other more complicated but higher performing stalls

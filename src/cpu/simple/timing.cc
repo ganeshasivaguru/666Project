@@ -901,6 +901,7 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
 void
 TimingSimpleCPU::IcachePort::ITickEvent::process()
 {
+    //inform("in proces I cache port s\n");
     cpu->completeIfetch(pkt);
 }
 
@@ -1159,6 +1160,7 @@ TimingSimpleCPU::DcachePort::recvTimingResp(PacketPtr pkt)
 void
 TimingSimpleCPU::DcachePort::DTickEvent::process()
 {
+    //inform("In data access process\n");
     cpu->completeDataAccess(pkt);
 }
 

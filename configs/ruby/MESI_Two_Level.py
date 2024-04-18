@@ -65,7 +65,11 @@ def create_system(options, full_system, system, dma_ports, bootmem,
     l2_bits = int(math.log(options.num_l2caches, 2))
     block_size_bits = int(math.log(options.cacheline_size, 2))
     print(options.num_cpus)
+    LTP_array = [0 for x in range(options.num_cpus)]
     for i in range(options.num_cpus):
+        LTP = LastTouchPred()
+        LTP_array[i] = LTP
+        
         #
         # First create the Ruby objects associated with this cpu
         #
@@ -78,7 +82,6 @@ def create_system(options, full_system, system, dma_ports, bootmem,
                             start_index_bit = block_size_bits,
                             is_icache = False)
 
-        prefetcher = RubyPrefetcher()
 
         clk_domain = cpus[i].clk_domain
 
@@ -86,7 +89,6 @@ def create_system(options, full_system, system, dma_ports, bootmem,
                                       L1Dcache = l1d_cache,
                                       l2_select_num_bits = l2_bits,
                                       send_evictions = send_evicts(options),
-                                      prefetcher = prefetcher,
                                       ruby_system = ruby_system,
                                       clk_domain = clk_domain,
                                       transitions_per_cycle = options.ports,
@@ -96,7 +98,7 @@ def create_system(options, full_system, system, dma_ports, bootmem,
                                 dcache = l1d_cache, clk_domain = clk_domain,
                                 ruby_system = ruby_system)
 
-
+        l1_cntrl.LTP = LTP_array[i]
         l1_cntrl.sequencer = cpu_seq
         exec("ruby_system.l1_cntrl%d = l1_cntrl" % i)
 
@@ -120,6 +122,11 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         l1_cntrl.responseToL1Cache = MessageBuffer()
         l1_cntrl.responseToL1Cache.in_port = ruby_system.network.out_port
 
+        l1_cntrl.fromDir_self_inv = MessageBuffer(ordered = True)
+        l1_cntrl.fromDir_self_inv.in_port = ruby_system.network.out_port
+
+        l1_cntrl.self_inv_queue_out = MessageBuffer(ordered = True)
+        l1_cntrl.self_inv_queue_out.out_port = ruby_system.network.in_port
 
     l2_index_start = block_size_bits + l2_bits
 
@@ -154,7 +161,11 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         l2_cntrl.responseToL2Cache = MessageBuffer()
         l2_cntrl.responseToL2Cache.in_port = ruby_system.network.out_port
 
+        l2_cntrl.toCache_self_inv_queue = MessageBuffer(ordered = True)
+        l2_cntrl.toCache_self_inv_queue.out_port = ruby_system.network.in_port
 
+        l2_cntrl.requestFromCache_self_inv = MessageBuffer(ordered = True)
+        l2_cntrl.requestFromCache_self_inv.in_port = ruby_system.network.out_port
     # Run each of the ruby memory controllers at a ratio of the frequency of
     # the ruby system
     # clk_divider value is a fix to pass regression.
@@ -222,6 +233,6 @@ def create_system(options, full_system, system, dma_ports, bootmem,
 
         all_cntrls = all_cntrls + [io_controller]
 
-    ruby_system.network.number_of_virtual_networks = 3
+    ruby_system.network.number_of_virtual_networks = 4
     topology = create_topology(all_cntrls, options)
     return (cpu_sequencers, mem_dir_cntrl_nodes, topology)

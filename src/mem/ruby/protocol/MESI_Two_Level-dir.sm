@@ -201,9 +201,11 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
         if (isGETRequest(in_msg.Type)) {
           trigger(Event:Fetch, in_msg.addr, TBEs[in_msg.addr]);
         } else if (in_msg.Type == CoherenceRequestType:DMA_READ) {
+          error("got DMA request\n");
           trigger(Event:DMA_READ, makeLineAddress(in_msg.addr),
                   TBEs[makeLineAddress(in_msg.addr)]);
         } else if (in_msg.Type == CoherenceRequestType:DMA_WRITE) {
+          error("got DMA request\n");
           trigger(Event:DMA_WRITE, makeLineAddress(in_msg.addr),
                   TBEs[makeLineAddress(in_msg.addr)]);
         } else {

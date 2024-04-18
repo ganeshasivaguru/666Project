@@ -481,7 +481,7 @@ machine(MachineType:Directory, "Directory protocol")
         peek(request_in, RequestMsg) {
             if(getDirectoryEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
                 //wrong predictio
-                assert(1==0);
+                //assert(1==0);
                 enqueue(dir_to_cache_self, RequestMsg, 1) {
                     out_msg.addr := address;
                     out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
