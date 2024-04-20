@@ -66,6 +66,8 @@ def create_system(options, full_system, system, dma_ports, bootmem,
     block_size_bits = int(math.log(options.cacheline_size, 2))
     print(options.num_cpus)
     LTP_array = [0 for x in range(options.num_cpus)]
+
+    LTP_dir = LastTouchPred()
     for i in range(options.num_cpus):
         LTP = LastTouchPred()
         LTP_array[i] = LTP
@@ -99,7 +101,9 @@ def create_system(options, full_system, system, dma_ports, bootmem,
                                 ruby_system = ruby_system)
 
         l1_cntrl.LTP = LTP_array[i]
+        l1_cntrl.LTP_L2 = LTP_dir
         l1_cntrl.sequencer = cpu_seq
+
         exec("ruby_system.l1_cntrl%d = l1_cntrl" % i)
 
         # Add controllers and sequencers to the appropriate lists
@@ -166,6 +170,8 @@ def create_system(options, full_system, system, dma_ports, bootmem,
 
         l2_cntrl.requestFromCache_self_inv = MessageBuffer(ordered = True)
         l2_cntrl.requestFromCache_self_inv.in_port = ruby_system.network.out_port
+
+        l2_cntrl.LTP = LTP_dir
     # Run each of the ruby memory controllers at a ratio of the frequency of
     # the ruby system
     # clk_divider value is a fix to pass regression.

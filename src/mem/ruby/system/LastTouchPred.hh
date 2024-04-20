@@ -64,6 +64,7 @@
 #include "mem/ruby/slicc_interface/Message.hh"
 #include "params/LastTouchPred.hh"
 #include "sim/sim_object.hh"
+#include "mem/ruby/common/MachineID.hh"
 
 namespace gem5
 {
@@ -74,8 +75,9 @@ namespace ruby
 class LastTouchPred: public SimObject
 {
     public:
-        int LTP_id = 0;
-        void set_LTP_id(int id);
+        MachineID LTP_id;// = 0;
+        void set_LTP_id(MachineID id);
+        MachineID get_LTP_id();
         //execution stats
         int num_wrong_invalidations = 0;
         int num_right_invalidations = 0;
@@ -88,8 +90,12 @@ class LastTouchPred: public SimObject
         std::vector<std::vector<std::vector<int>>> LTP_sig_table;//(100,-1);
         std::vector<std::vector<std::vector<int>>> last_touched_signature;
         std::deque<int> blocks_to_be_self_inv;
+        std::vector<std::pair<int, MachineID>> forward_request_table;
 
         void increment_invalidations();
+        void add_forward_queue(Addr address, MachineID machine_node);
+        void remove_forward_queue(Addr address, MachineID machine_node);
+        int search_forward(Addr address, MachineID machine_node);
 
         void update_table_size(int num_blocks);
         int get_sig_table_size();

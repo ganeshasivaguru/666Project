@@ -79,8 +79,13 @@ LastTouchPred::debug_print(){
 }
 
 void
-LastTouchPred::set_LTP_id(int id){
+LastTouchPred::set_LTP_id(MachineID id){
     LTP_id = id;
+}
+
+MachineID
+LastTouchPred::get_LTP_id(){
+    return LTP_id;
 }
 
 void
@@ -117,6 +122,36 @@ LastTouchPred::blocks_to_be_self_inv_empty(){
         return true;
     else
         return false;
+}
+
+void
+LastTouchPred::add_forward_queue(Addr address, MachineID machine_node){
+    
+    forward_request_table.push_back(std::make_pair(address, machine_node));
+}
+
+void
+LastTouchPred::remove_forward_queue(Addr address, MachineID machine_node){
+    int found_entry = 0;
+    for(int i = 0; i < forward_request_table.size(); i++ ){
+        if(forward_request_table[i].first == address && forward_request_table[i].second == machine_node){
+            forward_request_table.erase(forward_request_table.begin() + i);
+            found_entry = 1;
+        }
+    }
+    assert(found_entry);
+}
+
+int
+LastTouchPred::search_forward(Addr address, MachineID machine_node){
+     int found_entry = 0;
+    for(int i = 0; i < forward_request_table.size(); i++ ){
+        if(forward_request_table[i].first == address && forward_request_table[i].second == machine_node){
+            //forward_request_table.erase(i);
+            found_entry = 1;
+        }
+    }
+    return found_entry;
 }
 
 
@@ -231,9 +266,9 @@ LastTouchPred::check_self_invalidation(Addr block_tag){
         }
 
     }
-    if (block_tag == 0x400){
+    /*if (block_tag == 0x400){
        LT_match = 1;
-    }
+    }*/
 
     //inform("match = %d\n",LT_match);
     if (LT_match){

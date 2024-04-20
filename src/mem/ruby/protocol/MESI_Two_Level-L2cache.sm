@@ -69,6 +69,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     vnet_type="request";
   MessageBuffer *toCache_self_inv_queue, network="To", virtual_network="3",
     vnet_type="request";
+
+  LastTouchPred * LTP;
 {
   // STATES
   state_declaration(State, desc="L2 Cache states", default="L2Cache_State_NP") {
@@ -140,8 +142,12 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     //SELF_INV_DIR_ACK_DIRTY, desc="directory acked self inv";
     Self_Inv_Only_Sharer, desc="self inv clean and only sharer";
     Self_Inv, desc="self inv clean ";
+    Self_Inv_demoted_dirty, desc="self inv was dirty but do longer has ownership ";
     Self_Inv_Dirty, desc="sef inv dirty";
-    Dummy_Self_Inv, desc="other requestors got in way so need to send ack and move on";
+    Self_Inv_Forward_Sent, desc="other requestors got in way so need to send ack and move on";
+
+    Forward_L2_Send_DataX, desc="used in race condition where self inv sent and forward came";
+    Forward_L2_Send_DataS, desc="used in race condition where self inv sent and forward came";
   }
 
   // TYPES
@@ -277,14 +283,27 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   }
 
   Event L1Cache_request_type_to_event(CoherenceRequestType type, Addr addr,
-                                      MachineID requestor, Entry cache_entry) {
+                                      MachineID requestor, Entry cache_entry, bool self_invalidator) {
     if(type == CoherenceRequestType:GETS) {
-      return Event:L1_GETS;
+      if(self_invalidator){
+        //owner is self invaidating so get data from L2
+        return Event:Forward_L2_Send_DataS;
+      }
+      else{
+        return Event:L1_GETS;
+      }
     } else if(type == CoherenceRequestType:GET_INSTR) {
       return Event:L1_GET_INSTR;
     } else if (type == CoherenceRequestType:GETX) {
-      return Event:L1_GETX;
-    } else if (type == CoherenceRequestType:UPGRADE) {
+        if(self_invalidator){
+            //owner is self invaidating so get data from L2
+            return Event:Forward_L2_Send_DataX;
+        }
+        else{
+          return Event:L1_GETX;
+        }
+      }
+    else if (type == CoherenceRequestType:UPGRADE) {
       if ( is_valid(cache_entry) && cache_entry.Sharers.isElement(requestor) ) {
         return Event:L1_UPGRADE;
       } else {
@@ -309,6 +328,23 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   bool isDirty(Entry cache_entry) {
     assert(is_valid(cache_entry));
     return cache_entry.Dirty;
+  }
+
+  bool exclusiveIsInvalidator(Entry cache_entry){
+    if (is_valid(cache_entry) &&  cache_entry.Self_Invalidators.count() > 0 &&  (machineIDToMachineType(cache_entry.Exclusive) == MachineType:L1Cache || machineIDToMachineType(cache_entry.Exclusive) == MachineType:L2Cache)) {
+      return cache_entry.Self_Invalidators.isElement(cache_entry.Exclusive);
+    } else {
+      return false;
+    }
+  }
+
+  bool check_self_invalidator_requestor(Entry cache_entry, MachineID requestor){
+    if(is_valid(cache_entry) &&  cache_entry.Self_Invalidators.count() > 0){
+      return cache_entry.Self_Invalidators.isElement(requestor);
+    }
+    else {
+      return false;
+    }
   }
 
   // ** OUT_PORTS **
@@ -341,7 +377,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   }
 
   // Response  L2 Network - response msg to this particular L2 bank
-  in_port(responseL2Network_in, ResponseMsg, responseToL2Cache, rank = 1) {
+  in_port(responseL2Network_in, ResponseMsg, responseToL2Cache, rank = 3) {
     if (responseL2Network_in.isReady(clockEdge())) {
       peek(responseL2Network_in, ResponseMsg) {
         // test wether it's from a local L1 or an off chip source
@@ -398,13 +434,15 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         if (is_valid(cache_entry)) {
           // The L2 contains the block, so proceeded with handling the request
           trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
-                                                in_msg.Requestor, cache_entry),
+                                                in_msg.Requestor, cache_entry,
+                                                exclusiveIsInvalidator(cache_entry)),
                   in_msg.addr, cache_entry, tbe);
         } else {
           if (L2cache.cacheAvail(in_msg.addr)) {
             // L2 does't have the line, but we have space for it in the L2
             trigger(L1Cache_request_type_to_event(in_msg.Type, in_msg.addr,
-                                                  in_msg.Requestor, cache_entry),
+                                                  in_msg.Requestor, cache_entry, 
+                                                  exclusiveIsInvalidator(cache_entry)),
                     in_msg.addr, cache_entry, tbe);
           } else {
             // No room in the L2, so we need to make room before handling the request
@@ -422,7 +460,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-  in_port(self_inv_in, RequestMsg, requestFromCache_self_inv, rank = 3) {
+  in_port(self_inv_in, RequestMsg, requestFromCache_self_inv, rank = 1) {
       if (self_inv_in.isReady(clockEdge())) {
           peek(self_inv_in, RequestMsg) {
               //error("yay");
@@ -432,18 +470,27 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
                   if(entry.Sharers.count() == 1 && entry.Sharers.isElement(in_msg.Requestor)){
                       trigger(Event:Self_Inv_Only_Sharer, in_msg.addr,entry, tbe);
                   }
+                  else if(LTP.search_forward(in_msg.addr,in_msg.Requestor) == 1){
+                    trigger(Event:Self_Inv_Forward_Sent, in_msg.addr,entry, tbe);
+                  }
                   else{
                       trigger(Event:Self_Inv, in_msg.addr,entry, tbe);
                   }
               }
               else if(in_msg.Type == CoherenceRequestType:SELF_INV_DIRTY){
-                  if(getCacheEntry(in_msg.addr).Exclusive == in_msg.Requestor){
+                  if(LTP.search_forward(in_msg.addr,in_msg.Requestor) == 1){
+                    //trigger special event
+                    trigger(Event:Self_Inv_Forward_Sent, in_msg.addr,entry, tbe);
+
+                  }
+                  else if(getCacheEntry(in_msg.addr).Exclusive == in_msg.Requestor){
                       trigger(Event:Self_Inv_Dirty, in_msg.addr,entry, tbe);
                   }
                   else{
-                      trigger(Event:Self_Inv, in_msg.addr,entry, tbe);
+                      trigger(Event:Self_Inv_demoted_dirty, in_msg.addr,entry, tbe);
                   }
               }
+
               else {
                   error("Unexpected message type.");
               }
@@ -453,9 +500,35 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
 
   // ACTIONS
+
+  action(send_right_predict, "right_pred", desc="self right pred"){
+    if(cache_entry.Self_Invalidators.count() > 0){
+      enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+        out_msg.addr := address;
+        out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
+        out_msg.Requestor := machineID;
+        out_msg.Destination := getCacheEntry(address).Self_Invalidators;
+        out_msg.MessageSize := MessageSizeType:Control;
+      }
+      getCacheEntry(address).Self_Invalidators.clear();
+    }
+  }
+
+
+
   action(sendSelfInvAck, "self", desc="Send the self inv ack") {
       peek(self_inv_in, RequestMsg) {
-          //assert(1==0);
+        //if there is a forward entry, send wait
+        if(LTP.search_forward(in_msg.addr,in_msg.Requestor) == 1){
+          enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+            out_msg.addr := address;
+            out_msg.Type := CoherenceRequestType:Self_Inv_Dir_Ack_Wait_FwdReq;
+            out_msg.Requestor := machineID;
+            out_msg.Destination.add(in_msg.Requestor);
+            out_msg.MessageSize := MessageSizeType:Control;
+          }
+        }
+        else{
           enqueue(L1RequestL2Network_out, RequestMsg, 1) {
               out_msg.addr := address;
               out_msg.Type := CoherenceRequestType:SELF_INV_DIR_ACK;
@@ -463,11 +536,12 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
               out_msg.Destination.add(in_msg.Requestor);
               out_msg.MessageSize := MessageSizeType:Control;
           }
+        }
       }
   }
   action(a_issueFetchToMemory, "a", desc="fetch data from memory") {
     peek(L1RequestL2Network_in, RequestMsg) {
-        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+        if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
             //wrong prediction
             enqueue(L1RequestL2Network_out, RequestMsg, 1) {
                 out_msg.addr := address;
@@ -477,19 +551,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
                 out_msg.MessageSize := MessageSizeType:Control;
             }
             getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
-        } //not sure about below
-        else if(getCacheEntry(address).Self_Invalidators.count() > 0){
-        //right prediction
-            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
-                out_msg.addr := address;
-                out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
-                out_msg.Requestor := machineID;
-                out_msg.Destination := getCacheEntry(address).Self_Invalidators;
-                out_msg.MessageSize := MessageSizeType:Control;
-            }
-            getCacheEntry(address).Self_Invalidators.clear();
-        }
-
+        } 
       enqueue(DirRequestL2Network_out, RequestMsg, l2_request_latency) {
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:GETS;
@@ -525,6 +587,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   action(b_forwardRequestToExclusive, "b", desc="Forward request to the exclusive L1") {
     peek(L1RequestL2Network_in, RequestMsg) {
+      LTP.add_forward_queue(in_msg.addr,cache_entry.Exclusive);
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
         out_msg.addr := address;
@@ -537,7 +600,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   }
   action(b_forwardRequestToExclusive_not_instr, "b_not_instr", desc="Forward request to the exclusive L1") {
     peek(L1RequestL2Network_in, RequestMsg) {
-        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+        if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
             //wrong prediction
             enqueue(L1RequestL2Network_out, RequestMsg, 1) {
                 out_msg.addr := address;
@@ -549,30 +612,43 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
             getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
 
         }
-        if(getCacheEntry(address).Self_Invalidators.isElement(cache_entry.Exclusive)||(getCacheEntry(address).Sharers.count() == 0)){
-          //don't forward the get
-          enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
-            assert(is_valid(cache_entry));
-            out_msg.addr := address;
-            out_msg.Type := CoherenceResponseType:DATA;
-            out_msg.Sender := machineID;
-            out_msg.Destination.add(in_msg.Requestor);
-            out_msg.DataBlk := cache_entry.DataBlk;
-            out_msg.MessageSize := MessageSizeType:Response_Data;
-            out_msg.AckCount := 0;
-          }
-        }
-        else{
-          enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
-            assert(is_valid(cache_entry));
-            out_msg.addr := address;
-            out_msg.Type := in_msg.Type;
-            out_msg.Requestor := in_msg.Requestor;
-            out_msg.Destination.add(cache_entry.Exclusive);
-            out_msg.MessageSize := MessageSizeType:Request_Control;
-          }
+        LTP.add_forward_queue(in_msg.addr,cache_entry.Exclusive);
+        enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+          assert(is_valid(cache_entry));
+          out_msg.addr := address;
+          out_msg.Type := in_msg.Type;
+          out_msg.Requestor := in_msg.Requestor;
+          out_msg.Destination.add(cache_entry.Exclusive);
+          out_msg.MessageSize := MessageSizeType:Request_Control;
+          
         }
 
+    }
+  }
+
+  action(b_forwardRequestToExclusive_not_instr_L2, "b_not_instr_X", desc="Forward request to the exclusive L1") {
+    peek(L1RequestL2Network_in, RequestMsg) {
+        if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
+            //wrong prediction
+            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+                out_msg.addr := address;
+                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+                out_msg.Requestor := machineID;
+                out_msg.Destination.add(in_msg.Requestor);
+                out_msg.MessageSize := MessageSizeType:Control;
+            }
+            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+        }
+        enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
+          assert(is_valid(cache_entry));
+          out_msg.addr := address;
+          out_msg.Type := CoherenceResponseType:DATA;
+          out_msg.Sender := machineID; //in_msg.Requestor; //was machineID
+          out_msg.Destination.add(in_msg.Requestor);
+          out_msg.DataBlk := cache_entry.DataBlk;
+          out_msg.MessageSize := MessageSizeType:Response_Data;
+          out_msg.AckCount := 0;
+        }
     }
   }
 
@@ -634,7 +710,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
 action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cache to reqeustor") {
     peek(L1RequestL2Network_in, RequestMsg) {
-      if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+      if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
           //wrong prediction
           enqueue(L1RequestL2Network_out, RequestMsg, 1) {
               out_msg.addr := address;
@@ -664,17 +740,6 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   action(dd_sendExclusiveDataToRequestor, "dd", desc="Send data from cache to reqeustor") {
     peek(L1RequestL2Network_in, RequestMsg) {
-        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
-            //wrong prediction
-            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
-                out_msg.addr := address;
-                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
-                out_msg.Requestor := machineID;
-                out_msg.Destination.add(in_msg.Requestor);
-                out_msg.MessageSize := MessageSizeType:Control;
-            }
-            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
-        }
 
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
@@ -689,6 +754,17 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
         if (cache_entry.Sharers.isElement(in_msg.Requestor)) {
           out_msg.AckCount := out_msg.AckCount + 1;
         }
+      }
+      if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
+        //wrong prediction
+        enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+            out_msg.addr := address;
+            out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
+            out_msg.Requestor := machineID;
+            out_msg.Destination.add(in_msg.Requestor);
+            out_msg.MessageSize := MessageSizeType:Control;
+        }
+        getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
       }
     }
   }
@@ -709,7 +785,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
   action(ds_sendSharedDataToRequestor_non_instr, "ds_not_instr", desc="Send data from cache to reqeustor") {
     peek(L1RequestL2Network_in, RequestMsg) {
-        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+        if(getCacheEntry(address).Self_Invalidators.count() > 0 && getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
             //wrong prediction
             enqueue(L1RequestL2Network_out, RequestMsg, 1) {
                 out_msg.addr := address;
@@ -780,6 +856,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   action(f_sendInvToSharers, "f", desc="invalidate sharers for L2 replacement") {
     enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
       assert(is_valid(cache_entry));
+      assert(cache_entry.Sharers.count() > 0);
       out_msg.addr := address;
       out_msg.Type := CoherenceRequestType:INV;
       out_msg.Requestor := machineID;
@@ -792,6 +869,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
+        assert(cache_entry.Sharers.count() > 0);
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:INV;
         out_msg.Requestor := in_msg.Requestor;
@@ -805,6 +883,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     peek(L1RequestL2Network_in, RequestMsg) {
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
+        assert(cache_entry.Sharers.count() > 0);
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:INV;
         out_msg.Requestor := in_msg.Requestor;
@@ -905,7 +984,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   action(ss_recordGetSL1ID_non_instr, "\s_no_instr", desc="Record L1 GetS for load response") {
     peek(L1RequestL2Network_in, RequestMsg) {
       assert(is_valid(tbe));
-        if(getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
+        if(getCacheEntry(address).Self_Invalidators.count() > 0 && getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
           //wrong prediction
           enqueue(L1RequestL2Network_out, RequestMsg, 1) {
               out_msg.addr := address;
@@ -1001,6 +1080,13 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     }
   }
 
+  action(ll_clearSharers_self, "\l_self", desc="Remove all L1 sharers from list") {
+    peek(self_inv_in, RequestMsg) {
+      assert(is_valid(cache_entry));
+      cache_entry.Sharers.clear();
+    }
+  }
+
   action(mm_markExclusive, "\m", desc="set the exclusive Exclusive") {
     peek(L1RequestL2Network_in, RequestMsg) {
       assert(is_valid(cache_entry));
@@ -1046,6 +1132,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   //===============================================
   // BASE STATE - I
 
+  
   // Transitions from I (Idle)
   transition({NP, IS, ISS, IM, SS, M, M_I, I_I, S_I, MT_IB, MT_SB}, L1_PUTX) {
     t_sendWBAck;
@@ -1070,32 +1157,47 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
 
 
-  transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE}) {
+  transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE, Forward_L2_Send_DataS,Forward_L2_Send_DataX}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
-  transition(SS, {Self_Inv}){
+  transition({SS, SS_MB, MT_SB, MT_IB, MT_IIB, MT_MB}, {Self_Inv}){
     removeReqFromSharers_self_inv;
     addReqToInvalidators;
-    sendSelfInvAck;
+    //sendSelfInvAck;
     popSelfInv;
   }
   transition(SS, Self_Inv_Only_Sharer, M) {
       removeReqFromSharers_self_inv;
       addReqToInvalidators;
-      sendSelfInvAck;
+      //sendSelfInvAck;
       popSelfInv;
   }
 
-  transition({M, MT}, Self_Inv){
+  transition({MT_MB, MT_SB, MT_IIB, SS_MB}, Self_Inv_Only_Sharer){
+    removeReqFromSharers_self_inv;
+    addReqToInvalidators;
+    sendSelfInvAck;
+    popSelfInv;
+  }
+
+  transition({M, MT, MT_IIB, MT_IB, MT_SB}, {Self_Inv_demoted_dirty, Self_Inv_Forward_Sent}){
     addReqToInvalidators;
     removeReqFromSharers_self_inv;
     sendSelfInvAck;
     popSelfInv;
   }
+
+  /*transition({MT_IIB, SS_MB},Self_Inv_Only_Sharer ){
+    zz_stallAndWaitSelfInv;
+  }*/
+  /*transition(MT_IB, Self_Inv_Dirty){
+    zz_stallAndWaitSelfInv;
+  }*/
   transition(MT, {Self_Inv_Dirty, Self_Inv_Only_Sharer}, M) {
 
-    ll_clearSharers;
+    //ll_clearSharers;
+    ll_clearSharers_self;
     addReqToInvalidators;
     mr_writeDataToCacheFromRequest_self;
     sendSelfInvAck;
@@ -1112,7 +1214,6 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     //uu_profileMiss;
     jj_popL1RequestQueue;
   }
-
   transition(NP, L1_GET_INSTR, IS) {
     qq_allocateL2CacheBlock;
     ll_clearSharers;
@@ -1180,7 +1281,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
 
   // transitions from SS
-  transition(SS, {L1_GETS}) {
+  transition(SS, {L1_GETS, Forward_L2_Send_DataS}) {
     //ds_sendSharedDataToRequestor;
     ds_sendSharedDataToRequestor_non_instr;
     nn_addSharer;
@@ -1197,8 +1298,9 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     jj_popL1RequestQueue;
   }
 
-  transition(SS, L1_GETX, SS_MB) {
+  transition(SS, {L1_GETX, Forward_L2_Send_DataX}, SS_MB) {
     d_sendDataToRequestor_not_instr;
+    send_right_predict;
     //d_sendDataToRequestor;
     // fw_sendFwdInvToSharers;
     fwm_sendFwdInvToSharersMinusRequestor;
@@ -1228,7 +1330,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
 
 
-  transition(M, L1_GETX, MT_MB) {
+  transition(M, {L1_GETX, Forward_L2_Send_DataX}, MT_MB) {
     d_sendDataToRequestor_not_instr;
     //d_sendDataToRequestor;
     set_setMRU;
@@ -1244,8 +1346,9 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     jj_popL1RequestQueue;
   }
 
-  transition(M, L1_GETS, MT_MB) {
+  transition(M, {L1_GETS,Forward_L2_Send_DataS} , MT_MB) {
     dd_sendExclusiveDataToRequestor;
+    send_right_predict;
     set_setMRU;
     //uu_profileHit;
     jj_popL1RequestQueue;
@@ -1272,14 +1375,28 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     set_setMRU;
     jj_popL1RequestQueue;
   }
-
+  transition(MT, Forward_L2_Send_DataX, MT_MB) { //used to go to MT_MB
+    //b_forwardRequestToExclusive_not_instr;
+    b_forwardRequestToExclusive_not_instr_L2
+    set_setMRU;
+    jj_popL1RequestQueue;
+  }
 
   transition(MT, {L1_GETS}, MT_IIB) {
     b_forwardRequestToExclusive_not_instr;
+    send_right_predict;
     //uu_profileMiss;
     set_setMRU;
     jj_popL1RequestQueue;
   }
+  transition(MT, {Forward_L2_Send_DataS}, SS) { //used to be MT_IIB
+    //add sharer
+    nn_addSharer;
+    b_forwardRequestToExclusive_not_instr_L2;
+    set_setMRU;
+    jj_popL1RequestQueue;
+  }
+  
   transition(MT, {L1_GET_INSTR}, MT_IIB) {
     b_forwardRequestToExclusive;
     //uu_profileMiss;
@@ -1386,7 +1503,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     zz_stallAndWaitL1RequestQueue;
   }
   //unsure about this
-  transition({MT_MB,SS_MB}, {Self_Inv}) {
+  transition({MT_MB,SS_MB}, {Self_Inv_Forward_Sent}) {
     //zz_stallAndWaitSelfInv;
     removeReqFromSharers_self_inv;
     addReqToInvalidators;
@@ -1394,12 +1511,22 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     popSelfInv;
   }
   //unsure
-  transition({MT_MB,SS_MB}, { Self_Inv_Dirty}) {
+  transition({MT_IIB, MT_SB}, { Self_Inv_Dirty}) { //SS_MB and MT_MB used to be here
     //zz_stallAndWaitSelfInv;
 
-    ll_clearSharers;
+    //ll_clearSharers;
     addReqToInvalidators;
-    mr_writeDataToCacheFromRequest_self;
+    removeReqFromSharers_self_inv;
+    //mr_writeDataToCacheFromRequest_self;
+    sendSelfInvAck;
+    popSelfInv;
+  }
+  //need to stall because exclusive not set yet
+  transition({SS_MB,MT_MB},{Self_Inv_demoted_dirty,Self_Inv_Dirty}){
+    zz_stallAndWaitSelfInv;
+  }
+  //not sure about this, maybe do an extra check for cache line dirty?
+  transition({SS}, Self_Inv_Dirty){
     sendSelfInvAck;
     popSelfInv;
   }
