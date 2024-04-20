@@ -71,6 +71,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     vnet_type="request";
 
   LastTouchPred * LTP;
+  LastTouchPred ** LTP;
 {
   // STATES
   state_declaration(State, desc="L2 Cache states", default="L2Cache_State_NP") {
