@@ -93,6 +93,7 @@ class LastTouchPred: public SimObject
         std::vector<std::pair<int, MachineID>> forward_request_table;
 
         void increment_invalidations();
+        int get_LT_match();
         void add_forward_queue(Addr address, MachineID machine_node);
         void remove_forward_queue(Addr address, MachineID machine_node);
         int search_forward(Addr address, MachineID machine_node);

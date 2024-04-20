@@ -71,7 +71,42 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     vnet_type="request";
 
   LastTouchPred * LTP;
-  LastTouchPred ** LTP;
+  //LastTouchPred *LTPs;//[5];
+
+  /* L1 LTPS */
+  LastTouchPred * L1_LTP0;
+  LastTouchPred * L1_LTP1;
+  LastTouchPred * L1_LTP2;
+  LastTouchPred * L1_LTP3;
+  LastTouchPred * L1_LTP4;
+  LastTouchPred * L1_LTP5;
+  LastTouchPred * L1_LTP6;
+  LastTouchPred * L1_LTP7;
+  LastTouchPred * L1_LTP8;
+  LastTouchPred * L1_LTP9;
+  LastTouchPred * L1_LTP10;
+  LastTouchPred * L1_LTP11;
+  LastTouchPred * L1_LTP12;
+  LastTouchPred * L1_LTP13;
+  LastTouchPred * L1_LTP14;
+  LastTouchPred * L1_LTP15;
+  LastTouchPred * L1_LTP16;
+  LastTouchPred * L1_LTP17;
+  LastTouchPred * L1_LTP18;
+  LastTouchPred * L1_LTP19;
+  LastTouchPred * L1_LTP20;
+  LastTouchPred * L1_LTP21;
+  LastTouchPred * L1_LTP22;
+  LastTouchPred * L1_LTP23;
+  LastTouchPred * L1_LTP24;
+  LastTouchPred * L1_LTP25;
+  LastTouchPred * L1_LTP26;
+  LastTouchPred * L1_LTP27;
+  LastTouchPred * L1_LTP28;
+  LastTouchPred * L1_LTP29;
+  LastTouchPred * L1_LTP30;
+  LastTouchPred * L1_LTP31;
+
 {
   // STATES
   state_declaration(State, desc="L2 Cache states", default="L2Cache_State_NP") {
@@ -208,6 +243,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
       return false;
     }
   }
+
+
 
   void addSharer(Addr addr, MachineID requestor, Entry cache_entry) {
     assert(is_valid(cache_entry));
@@ -484,7 +521,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
                     trigger(Event:Self_Inv_Forward_Sent, in_msg.addr,entry, tbe);
 
                   }
-                  else if(getCacheEntry(in_msg.addr).Exclusive == in_msg.Requestor){
+                  else if(is_valid(entry) && entry.Exclusive == in_msg.Requestor){ //caused seg fault
                       trigger(Event:Self_Inv_Dirty, in_msg.addr,entry, tbe);
                   }
                   else{
@@ -501,6 +538,144 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
 
   // ACTIONS
+  /*
+  action(increaseStrength, "right_pred", desc="self right pred"){
+    int id := machineIDToNodeID(machineID);
+    if(id == 0)
+      L1_LTP0.strengthenAccuracy(address);
+    else if(id == 1)
+      L1_LTP1.strengthenAccuracy(address);
+    else if(id == 2)
+      L1_LTP2.strengthenAccuracy(address);
+    else if(id == 3)
+      L1_LTP3.strengthenAccuracy(address);
+    else if(id == 4)
+      L1_LTP4.strengthenAccuracy(address);
+    else if(id == 5)
+      L1_LTP5.strengthenAccuracy(address);
+    else if(id == 6)
+      L1_LTP6.strengthenAccuracy(address);
+    else if(id == 7)
+      L1_LTP7.strengthenAccuracy(address);
+    else if(id == 8)
+      L1_LTP8.strengthenAccuracy(address);
+    else if(id == 9)
+      L1_LTP9.strengthenAccuracy(address);
+    else if(id == 10)
+      L1_LTP10.strengthenAccuracy(address);
+    else if(id == 11)
+      L1_LTP11.strengthenAccuracy(address);
+    else if(id == 12)
+      L1_LTP12.strengthenAccuracy(address);
+    else if(id == 13)
+      L1_LTP13.strengthenAccuracy(address);
+    else if(id == 14)
+      L1_LTP14.strengthenAccuracy(address);
+    else if(id == 15)
+      L1_LTP15.strengthenAccuracy(address);
+    else if(id == 16)
+      L1_LTP16.strengthenAccuracy(address);
+    else if(id == 17)
+      L1_LTP17.strengthenAccuracy(address);
+    else if(id == 18)
+      L1_LTP18.strengthenAccuracy(address);
+    else if(id == 19)
+      L1_LTP19.strengthenAccuracy(address);
+    else if(id == 20)
+      L1_LTP20.strengthenAccuracy(address);
+    else if(id == 21)
+      L1_LTP21.strengthenAccuracy(address);
+    else if(id == 22)
+      L1_LTP22.strengthenAccuracy(address);
+    else if(id == 23)
+      L1_LTP23.strengthenAccuracy(address);
+    else if(id == 24)
+      L1_LTP24.strengthenAccuracy(address);
+    else if(id == 25)
+      L1_LTP25.strengthenAccuracy(address);
+    else if(id == 26)
+      L1_LTP26.strengthenAccuracy(address);
+    else if(id == 27)
+      L1_LTP27.strengthenAccuracy(address);
+    else if(id == 28)
+      L1_LTP28.strengthenAccuracy(address);
+    else if(id == 29)
+      L1_LTP29.strengthenAccuracy(address);
+    else if(id == 30)
+      L1_LTP30.strengthenAccuracy(address);
+    else if(id == 31)
+      L1_LTP31.strengthenAccuracy(address);
+  }*/
+  void decreaseStrengthNode(MachineID machineID, Addr address){
+    int id := machineIDToNodeID_int(machineID);
+    if(id == 0){
+      L1_LTP0.weakenAccuracy(address);}
+    else if(id == 1){
+      L1_LTP1.weakenAccuracy(address);}
+    else if(id == 2){
+      L1_LTP2.weakenAccuracy(address);}
+    else if(id == 3){
+      L1_LTP3.weakenAccuracy(address);}
+    else if(id == 4){
+      L1_LTP4.weakenAccuracy(address);}
+    else if(id == 5){
+      L1_LTP5.weakenAccuracy(address);}
+    else if(id == 6){
+      L1_LTP6.weakenAccuracy(address);}
+    else if(id == 7){
+      L1_LTP7.weakenAccuracy(address);}
+    else if(id == 8){
+      L1_LTP8.weakenAccuracy(address);}
+    else if(id == 9){
+      L1_LTP9.weakenAccuracy(address);}
+    else if(id == 10){
+      L1_LTP10.weakenAccuracy(address);}
+    else if(id == 11){
+      L1_LTP11.weakenAccuracy(address);}
+    else if(id == 12){
+      L1_LTP12.weakenAccuracy(address);}
+    else if(id == 13){
+      L1_LTP13.weakenAccuracy(address);}
+    else if(id == 14){
+      L1_LTP14.weakenAccuracy(address);}
+    else if(id == 15){
+      L1_LTP15.weakenAccuracy(address);}
+    else if(id == 16){
+      L1_LTP16.weakenAccuracy(address);}
+    else if(id == 17){
+      L1_LTP17.weakenAccuracy(address);}
+    else if(id == 18){
+      L1_LTP18.weakenAccuracy(address);}
+    else if(id == 19){
+      L1_LTP19.weakenAccuracy(address);}
+    else if(id == 20){
+      L1_LTP20.weakenAccuracy(address);}
+    else if(id == 21){
+      L1_LTP21.weakenAccuracy(address);}
+    else if(id == 22){
+      L1_LTP22.weakenAccuracy(address);}
+    else if(id == 23){
+      L1_LTP23.weakenAccuracy(address);}
+    else if(id == 24){
+      L1_LTP24.weakenAccuracy(address);}
+    else if(id == 25){
+      L1_LTP25.weakenAccuracy(address);}
+    else if(id == 26){
+      L1_LTP26.weakenAccuracy(address);}
+    else if(id == 27){
+      L1_LTP27.weakenAccuracy(address);}
+    else if(id == 28){
+      L1_LTP28.weakenAccuracy(address);}
+    else if(id == 29){
+      L1_LTP29.weakenAccuracy(address);}
+    else if(id == 30){
+      L1_LTP30.weakenAccuracy(address);}
+    else if(id == 31){
+      L1_LTP31.weakenAccuracy(address);}
+  }
+
+
+
 
   action(send_right_predict, "right_pred", desc="self right pred"){
     if(cache_entry.Self_Invalidators.count() > 0){
@@ -513,6 +688,10 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
       }
       getCacheEntry(address).Self_Invalidators.clear();
     }
+  }
+
+  action(clearSelfInvalidators, "clear_list", desc="clear self inv"){
+    getCacheEntry(address).Self_Invalidators.clear();
   }
 
 
@@ -542,7 +721,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   }
   action(a_issueFetchToMemory, "a", desc="fetch data from memory") {
     peek(L1RequestL2Network_in, RequestMsg) {
-        if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
+       /* if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
             //wrong prediction
             enqueue(L1RequestL2Network_out, RequestMsg, 1) {
                 out_msg.addr := address;
@@ -551,8 +730,10 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
                 out_msg.Destination.add(in_msg.Requestor);
                 out_msg.MessageSize := MessageSizeType:Control;
             }
+            decreaseStrengthNode(in_msg.Requestor, address);
+            
             getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
-        } 
+        } */
       enqueue(DirRequestL2Network_out, RequestMsg, l2_request_latency) {
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:GETS;
@@ -601,29 +782,21 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   }
   action(b_forwardRequestToExclusive_not_instr, "b_not_instr", desc="Forward request to the exclusive L1") {
     peek(L1RequestL2Network_in, RequestMsg) {
-        if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
-            //wrong prediction
-            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
-                out_msg.addr := address;
-                out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
-                out_msg.Requestor := machineID;
-                out_msg.Destination.add(in_msg.Requestor);
-                out_msg.MessageSize := MessageSizeType:Control;
-            }
-            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
-
-        }
-        LTP.add_forward_queue(in_msg.addr,cache_entry.Exclusive);
-        enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
-          assert(is_valid(cache_entry));
-          out_msg.addr := address;
-          out_msg.Type := in_msg.Type;
-          out_msg.Requestor := in_msg.Requestor;
-          out_msg.Destination.add(cache_entry.Exclusive);
-          out_msg.MessageSize := MessageSizeType:Request_Control;
-          
-        }
-
+      if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
+        //wrong prediction
+        decreaseStrengthNode(in_msg.Requestor, address);
+        getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+      }
+      LTP.add_forward_queue(in_msg.addr,cache_entry.Exclusive);
+      enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+        assert(is_valid(cache_entry));
+        out_msg.addr := address;
+        out_msg.Type := in_msg.Type;
+        out_msg.Requestor := in_msg.Requestor;
+        out_msg.Destination.add(cache_entry.Exclusive);
+        out_msg.MessageSize := MessageSizeType:Request_Control;
+        
+      }
     }
   }
 
@@ -631,13 +804,14 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
         if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
             //wrong prediction
-            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+            /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
                 out_msg.Requestor := machineID;
                 out_msg.Destination.add(in_msg.Requestor);
                 out_msg.MessageSize := MessageSizeType:Control;
-            }
+            }*/
+            decreaseStrengthNode(in_msg.Requestor, address);
             getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
         }
         enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
@@ -713,13 +887,14 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     peek(L1RequestL2Network_in, RequestMsg) {
       if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
           //wrong prediction
-          enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+          /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
               out_msg.addr := address;
               out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
               out_msg.Requestor := machineID;
               out_msg.Destination.add(in_msg.Requestor);
               out_msg.MessageSize := MessageSizeType:Control;
-          }
+          }*/
+          decreaseStrengthNode(in_msg.Requestor, address);
           getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
       }
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
@@ -758,13 +933,14 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
       }
       if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
         //wrong prediction
-        enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+        /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
             out_msg.addr := address;
             out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
             out_msg.Requestor := machineID;
             out_msg.Destination.add(in_msg.Requestor);
             out_msg.MessageSize := MessageSizeType:Control;
-        }
+        }*/
+        decreaseStrengthNode(in_msg.Requestor, address);
         getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
       }
     }
@@ -788,13 +964,14 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     peek(L1RequestL2Network_in, RequestMsg) {
         if(getCacheEntry(address).Self_Invalidators.count() > 0 && getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
             //wrong prediction
-            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+            /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
                 out_msg.Requestor := machineID;
                 out_msg.Destination.add(in_msg.Requestor);
                 out_msg.MessageSize := MessageSizeType:Control;
-            }
+            }*/
+            decreaseStrengthNode(in_msg.Requestor, address);
             getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
         } 
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
@@ -987,13 +1164,14 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
       assert(is_valid(tbe));
         if(getCacheEntry(address).Self_Invalidators.count() > 0 && getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
           //wrong prediction
-          enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+          /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
               out_msg.addr := address;
               out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
               out_msg.Requestor := machineID;
               out_msg.Destination.add(in_msg.Requestor);
               out_msg.MessageSize := MessageSizeType:Control;
-          }
+          }*/
+          decreaseStrengthNode(in_msg.Requestor, address);
           getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
         }
 
@@ -1124,6 +1302,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   action(popSelfInv, "p_self", desc="Pop the self_inv queue") {
     self_inv_in.dequeue(clockEdge());
   }
+  
 
   //*****************************************************
   // TRANSITIONS
@@ -1156,7 +1335,18 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   transition({I_I, S_I, M_I, MT_I, MCT_I, NP}, MEM_Inv) {
     o_popIncomingResponseQueue;
   }
+  
+  transition({MCT_I}, Self_Inv_demoted_dirty){//used to be stall
+    //zz_stallAndWaitSelfInv;
+    sendSelfInvAck
+    popSelfInv;
+  }
+  //probably want to decrease strength here
+  transition(NP, Self_Inv_demoted_dirty){
+    sendSelfInvAck
+    popSelfInv;
 
+  }
 
   transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE, Forward_L2_Send_DataS,Forward_L2_Send_DataX}) {
     zz_stallAndWaitL1RequestQueue;
@@ -1312,6 +1502,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   transition(SS, L1_UPGRADE, SS_MB) {
     fwm_sendFwdInvToSharersMinusRequestor;
+    send_right_predict;
     ts_sendInvAckToUpgrader;
     set_setMRU;
     //uu_profileHit;
@@ -1319,12 +1510,14 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
 
   transition(SS, L2_Replacement_clean, I_I) {
+    send_right_predict;
     i_allocateTBE;
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
   }
 
   transition(SS, {L2_Replacement, MEM_Inv}, S_I) {
+    send_right_predict;
     i_allocateTBE;
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
@@ -1358,11 +1551,15 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   transition(M, {L2_Replacement, MEM_Inv}, M_I) {
     i_allocateTBE;
     c_exclusiveReplacement;
+    send_right_predict
+    //clearSelfInvalidators
     rr_deallocateL2CacheBlock;
+    
   }
 
   transition(M, L2_Replacement_clean, M_I) {
     i_allocateTBE;
+    send_right_predict
     c_exclusiveCleanReplacement;
     rr_deallocateL2CacheBlock;
   }
@@ -1407,13 +1604,18 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   transition(MT, {L2_Replacement, MEM_Inv}, MT_I) {
     i_allocateTBE;
+    send_right_predict;
     f_sendInvToSharers;
+    
     rr_deallocateL2CacheBlock;
+
   }
 
   transition(MT, L2_Replacement_clean, MCT_I) {
     i_allocateTBE;
+    send_right_predict;
     f_sendInvToSharers;
+    
     rr_deallocateL2CacheBlock;
   }
 

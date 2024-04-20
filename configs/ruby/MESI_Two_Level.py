@@ -172,6 +172,38 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         l2_cntrl.requestFromCache_self_inv.in_port = ruby_system.network.out_port
 
         l2_cntrl.LTP = LTP_dir
+        l2_cntrl.L1_LTP0 = LTP_array[0]
+        l2_cntrl.L1_LTP1 = LTP_array[1]
+        l2_cntrl.L1_LTP2 = LTP_array[2]
+        l2_cntrl.L1_LTP3 = LTP_array[3]
+        l2_cntrl.L1_LTP4 = LTP_array[4]
+        l2_cntrl.L1_LTP5 = LTP_array[5]
+        l2_cntrl.L1_LTP6 = LTP_array[6]
+        l2_cntrl.L1_LTP7 = LTP_array[7]
+        l2_cntrl.L1_LTP8 = LTP_array[8]
+        l2_cntrl.L1_LTP9 = LTP_array[9]
+        l2_cntrl.L1_LTP10 = LTP_array[10]
+        l2_cntrl.L1_LTP11 = LTP_array[11]
+        l2_cntrl.L1_LTP12 = LTP_array[12]
+        l2_cntrl.L1_LTP13 = LTP_array[13]
+        l2_cntrl.L1_LTP14 = LTP_array[14]
+        l2_cntrl.L1_LTP15 = LTP_array[15]
+        l2_cntrl.L1_LTP16 = LTP_array[16]
+        l2_cntrl.L1_LTP17 = LTP_array[17]
+        l2_cntrl.L1_LTP18 = LTP_array[18]
+        l2_cntrl.L1_LTP19 = LTP_array[19]
+        l2_cntrl.L1_LTP20 = LTP_array[20]
+        l2_cntrl.L1_LTP21 = LTP_array[21]
+        l2_cntrl.L1_LTP22 = LTP_array[22]
+        l2_cntrl.L1_LTP23 = LTP_array[23]
+        l2_cntrl.L1_LTP24 = LTP_array[24]
+        l2_cntrl.L1_LTP25 = LTP_array[25]
+        l2_cntrl.L1_LTP26 = LTP_array[26]
+        l2_cntrl.L1_LTP27 = LTP_array[27]
+        l2_cntrl.L1_LTP28 = LTP_array[28]
+        l2_cntrl.L1_LTP29 = LTP_array[29]
+        l2_cntrl.L1_LTP30 = LTP_array[30]
+        l2_cntrl.L1_LTP31 = LTP_array[31]
     # Run each of the ruby memory controllers at a ratio of the frequency of
     # the ruby system
     # clk_divider value is a fix to pass regression.

@@ -299,7 +299,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   // Response  L1 Network - response msg to this L1 cache
   in_port(responseL1Network_in, ResponseMsg, responseToL1Cache, rank = 3) {
-    /*if(!LTP.blocks_to_be_self_inv_empty()){
+    if(!LTP.blocks_to_be_self_inv_empty()){
             //do self inv instead
             //pop the front
             Addr address := LTP.pop_self_inv();
@@ -307,7 +307,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
             TBE tbe := TBEs[address];
             trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
         }
-    else */if (responseL1Network_in.isReady(clockEdge())) {
+    else if (responseL1Network_in.isReady(clockEdge())) {
       peek(responseL1Network_in, ResponseMsg, block_on="addr") {
         LTP.set_LTP_id(machineID);
         assert(in_msg.Destination.isElement(machineID));
@@ -348,7 +348,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   // Request InterChip network - request from this L1 cache to the shared L2
   in_port(requestL1Network_in, RequestMsg, requestToL1Cache, rank = 1) {
     //LTP.set_LTP_id(machineID);
-    /*if(!LTP.blocks_to_be_self_inv_empty()){
+    if(!LTP.blocks_to_be_self_inv_empty()){
       //do self inv instead
       //pop the front
       Addr address := LTP.pop_self_inv();
@@ -356,7 +356,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       TBE tbe := TBEs[address];
       trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
     }
-    else*/ if(requestL1Network_in.isReady(clockEdge())) {
+    else if(requestL1Network_in.isReady(clockEdge())) {
       peek(requestL1Network_in, RequestMsg, block_on="addr") {
         LTP.set_LTP_id(machineID);
         assert(in_msg.Destination.isElement(machineID));
@@ -376,10 +376,10 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
         else if(in_msg.Type == CoherenceRequestType:SELF_INV_RIGHT_PREDICT){
             //error("got the predict");
             trigger(Event:Self_Inv_Correct, in_msg.addr, cache_entry, tbe);
-        }else if(in_msg.Type == CoherenceRequestType:SELF_INV_WRONG_PREDICT){
+        }/*else if(in_msg.Type == CoherenceRequestType:SELF_INV_WRONG_PREDICT){
             //error("got the predict");
             trigger(Event:Self_Inv_Wrong, in_msg.addr, cache_entry, tbe);
-        }
+        }*/
         if (in_msg.Type == CoherenceRequestType:SELF_INV_DIR_ACK) {
             trigger(Event:Self_Inv_Dir_Ack, in_msg.addr, cache_entry, tbe);
         }
@@ -395,8 +395,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   // Mandatory Queue betweens Node's CPU and it's L1 caches
   in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, desc="...", rank = 0) {
-    //LTP.set_LTP_id(machineID);
-    /*if(!LTP.blocks_to_be_self_inv_empty()){
+    if(!LTP.blocks_to_be_self_inv_empty()){
       //assert(1==0);
       //do self inv instead
       //pop the front
@@ -405,7 +404,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       TBE tbe := TBEs[address];
       trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
     }
-    else*/ if (mandatoryQueue_in.isReady(clockEdge())) {
+    else if (mandatoryQueue_in.isReady(clockEdge())) {
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
         LTP.set_LTP_id(machineID);
         // Check for data access to blocks in I-cache and ifetchs to blocks in D-cache
@@ -1002,7 +1001,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     //popDirSelfInvQueue
     l_popRequestQueue
   }
-  transition({I, IM, M_I, IS}, Self_Inv_Correct){
+  transition({I, IM, M_I, IS, IS_I}, Self_Inv_Correct){
     increaseStrength;
     //popDirSelfInvQueue;
     l_popRequestQueue

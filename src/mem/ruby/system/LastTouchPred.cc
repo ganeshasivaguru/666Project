@@ -158,6 +158,7 @@ LastTouchPred::search_forward(Addr address, MachineID machine_node){
 void
 LastTouchPred::incrementAccuracy(Addr block_tag, int value){
     num_right_invalidations++;
+    //inform("id = %d: increment block = %x, sig = %x\n",LTP_id.getNum(), block_tag, value);
     //inform("id = %d, num right = %d\n",LTP_id,num_right_invalidations);
     //inform("increment\n");
     for (int i = 0; i <LTP_sig_table.size(); i++){
@@ -167,17 +168,20 @@ LastTouchPred::incrementAccuracy(Addr block_tag, int value){
                     if(LTP_sig_table[i][x][2] != 3){
                         LTP_sig_table[i][x][2]++;
                     }
+                    //inform("id = %d, incre accuracy = %d\n",LTP_id.getNum(), LTP_sig_table[i][x][2]);
                 }
                 
             }
         }
     }
+
 }
 void
 LastTouchPred::decrementAccuracy(Addr block_tag, int value){
     num_wrong_invalidations++;
     //inform("id = %d, num wrong = %d\n",LTP_id,num_wrong_invalidations);
     //inform("decrement\n");
+    //inform("id = %d: decrement block = %x, sig = %x\n",LTP_id.getNum(), block_tag, value);
     for (int i = 0; i <LTP_sig_table.size(); i++){
         for(int x = 0; x <LTP_sig_table[i].size(); x++){
             if(LTP_sig_table[i][x][0] == block_tag){
@@ -185,6 +189,7 @@ LastTouchPred::decrementAccuracy(Addr block_tag, int value){
                     if(LTP_sig_table[i][x][2] > 0){
                         LTP_sig_table[i][x][2]--;
                     }
+                    //inform("id = %d, decre accuracy = %d\n",LTP_id.getNum(), LTP_sig_table[i][x][2]);
                 }
                 
             }
@@ -254,6 +259,7 @@ LastTouchPred::check_self_invalidation(Addr block_tag){
     int found_block = 0;
     //int self_invalidate = 0
     int LT_match = 0;
+    int value; 
     for (int i = 0; i <current_sig_table.size(); i++){
         //inform("iterating, block_tag = %x\n",block_tag);
         if (current_sig_table[i][0] == block_tag){
@@ -261,11 +267,14 @@ LastTouchPred::check_self_invalidation(Addr block_tag){
             //inform("in array, block_tag = %x\n",block_tag);
             LT_match = check_for_LTP_match(current_sig_table[i][1], block_tag);
             if (LT_match){
+                value = current_sig_table[i][1];
                 current_sig_table[i][1] = 0;
+                
             }
         }
 
     }
+    
     /*if (block_tag == 0x400){
        LT_match = 1;
     }*/
@@ -274,7 +283,8 @@ LastTouchPred::check_self_invalidation(Addr block_tag){
     if (LT_match){
         num_invalidations_predicted++;
         //inform("id = %d, num predicted = %d\n",LTP_id,num_invalidations_predicted);
-        inform("address %x matched for LT and to be self invalidated\n",block_tag);
+        //inform("address %x matched for LT and to be self invalidated\n",block_tag);
+        //inform("id = %d: self inv match for block = %x, sig=%x\n",LTP_id.getNum(), block_tag, value);
     }
 
     return LT_match;
