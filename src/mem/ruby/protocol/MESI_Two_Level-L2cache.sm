@@ -136,6 +136,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     MT_IB, AccessPermission:Busy, desc="Blocked for L1_GETS from MT, got unblock, waiting for data";
     MT_SB, AccessPermission:Busy, desc="Blocked for L1_GETS from MT, got data,  waiting for unblock";
 
+    wait_for_WBdata_no_sharers, AccessPermission:Busy, desc="got only sharer self while waiting so wait for unblock then go into M";
+
   }
 
   // EVENTS
@@ -747,7 +749,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   action(addReqToInvalidators, "add_inv", desc="add requestor to invalidators") {
       peek(self_inv_in, RequestMsg) {
-          getCacheEntry(address).Self_Invalidators.add(in_msg.Requestor);
+          if(is_valid(getCacheEntry(address))){
+            getCacheEntry(address).Self_Invalidators.add(in_msg.Requestor);}
       }
   }
 
@@ -760,10 +763,11 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         }
       }
   }
-
+//TODO figure out why entry is invalid
   action(removeReqFromSharers_self_inv, "rS_self", desc="Remove requestor from sharers") {
       peek(self_inv_in, RequestMsg) {
-          getCacheEntry(address).Sharers.remove(in_msg.Requestor);
+          if(is_valid(getCacheEntry(address))){
+            getCacheEntry(address).Sharers.remove(in_msg.Requestor);}
       }
   }
 
@@ -1032,14 +1036,16 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
 
   action(f_sendInvToSharers, "f", desc="invalidate sharers for L2 replacement") {
-    enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
-      assert(is_valid(cache_entry));
-      assert(cache_entry.Sharers.count() > 0);
-      out_msg.addr := address;
-      out_msg.Type := CoherenceRequestType:INV;
-      out_msg.Requestor := machineID;
-      out_msg.Destination := cache_entry.Sharers;
-      out_msg.MessageSize := MessageSizeType:Request_Control;
+    if(cache_entry.Sharers.count() > 0){
+      enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+        assert(is_valid(cache_entry));
+        assert(cache_entry.Sharers.count() > 0);
+        out_msg.addr := address;
+        out_msg.Type := CoherenceRequestType:INV;
+        out_msg.Requestor := machineID;
+        out_msg.Destination := cache_entry.Sharers;
+        out_msg.MessageSize := MessageSizeType:Request_Control;
+      }
     }
   }
 
@@ -1314,21 +1320,21 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   
   // Transitions from I (Idle)
-  transition({NP, IS, ISS, IM, SS, M, M_I, I_I, S_I, MT_IB, MT_SB}, L1_PUTX) {
+  transition({NP, IS, ISS, IM, SS, M, M_I, I_I, S_I, MT_IB, MT_SB, wait_for_WBdata_no_sharers}, L1_PUTX) {
     t_sendWBAck;
     jj_popL1RequestQueue;
   }
 
-  transition({NP, SS, M, MT, M_I, I_I, S_I, IS, ISS, IM, MT_IB, MT_SB}, L1_PUTX_old) {
+  transition({NP, SS, M, MT, M_I, I_I, S_I, IS, ISS, IM, MT_IB, MT_SB, wait_for_WBdata_no_sharers}, L1_PUTX_old) {
     t_sendWBAck;
     jj_popL1RequestQueue;
   }
 
-  transition({IM, IS, ISS, SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L2_Replacement, L2_Replacement_clean}) {
+  transition({IM, IS, ISS, SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB, wait_for_WBdata_no_sharers}, {L2_Replacement, L2_Replacement_clean}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
-  transition({IM, IS, ISS, SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, MEM_Inv) {
+  transition({IM, IS, ISS, SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB, wait_for_WBdata_no_sharers}, MEM_Inv) {
     zn_recycleResponseNetwork;
   }
 
@@ -1338,21 +1344,25 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   
   transition({MCT_I}, Self_Inv_demoted_dirty){//used to be stall
     //zz_stallAndWaitSelfInv;
+    addReqToInvalidators
+    removeReqFromSharers_self_inv
     sendSelfInvAck
     popSelfInv;
   }
   //probably want to decrease strength here
   transition(NP, Self_Inv_demoted_dirty){
+    addReqToInvalidators
+    removeReqFromSharers_self_inv
     sendSelfInvAck
     popSelfInv;
 
   }
 
-  transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB}, {L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE, Forward_L2_Send_DataS,Forward_L2_Send_DataX}) {
+  transition({SS_MB, MT_MB, MT_IIB, MT_IB, MT_SB, wait_for_WBdata_no_sharers}, {L1_GETS, L1_GET_INSTR, L1_GETX, L1_UPGRADE, Forward_L2_Send_DataS,Forward_L2_Send_DataX}) {
     zz_stallAndWaitL1RequestQueue;
   }
 
-  transition({SS, SS_MB, MT_SB, MT_IB, MT_IIB, MT_MB}, {Self_Inv}){
+  transition({SS, SS_MB, MT_SB, MT_IB, MT_IIB, MT_MB, wait_for_WBdata_no_sharers}, {Self_Inv}){
     removeReqFromSharers_self_inv;
     addReqToInvalidators;
     //sendSelfInvAck;
@@ -1372,7 +1382,23 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     popSelfInv;
   }
 
-  transition({M, MT, MT_IIB, MT_IB, MT_SB}, {Self_Inv_demoted_dirty, Self_Inv_Forward_Sent}){
+  //improvement area? look at deadlock_contig in duplicate  
+  transition(MT_IB, Self_Inv_Only_Sharer, wait_for_WBdata_no_sharers){
+    removeReqFromSharers_self_inv;
+    addReqToInvalidators;
+    sendSelfInvAck;
+    popSelfInv;
+  }
+
+  transition(wait_for_WBdata_no_sharers, {WB_Data, WB_Data_clean}, M){
+    m_writeDataToCache;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents;
+  }
+
+
+
+  transition({M, MT, MT_IIB, MT_IB, MT_SB, wait_for_WBdata_no_sharers}, {Self_Inv_demoted_dirty, Self_Inv_Forward_Sent}){
     addReqToInvalidators;
     removeReqFromSharers_self_inv;
     sendSelfInvAck;
@@ -1655,6 +1681,8 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     kd_wakeUpDependents;
   }
 
+  
+
   transition(MT_SB, Unblock, SS) {
     nnu_addSharerFromUnblock;
     k_popUnblockQueue;
@@ -1714,6 +1742,17 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     popSelfInv;
   }
   //unsure
+  //used to be 
+  /*
+      //zz_stallAndWaitSelfInv;
+
+    //ll_clearSharers;
+    addReqToInvalidators;
+    removeReqFromSharers_self_inv;
+    //mr_writeDataToCacheFromRequest_self;
+    sendSelfInvAck;
+    popSelfInv;
+  */
   transition({MT_IIB, MT_SB}, { Self_Inv_Dirty}) { //SS_MB and MT_MB used to be here
     //zz_stallAndWaitSelfInv;
 
@@ -1729,10 +1768,13 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     zz_stallAndWaitSelfInv;
   }
   //not sure about this, maybe do an extra check for cache line dirty?
-  transition({SS}, Self_Inv_Dirty){
+  //I don't like this transition
+  /*transition({SS}, Self_Inv_Dirty){
+    addReqToInvalidators
+    removeReqFromSharers_self_inv
     sendSelfInvAck;
     popSelfInv;
-  }
+  }*/
   transition(S_I, Ack) {
     q_updateAck;
     o_popIncomingResponseQueue;

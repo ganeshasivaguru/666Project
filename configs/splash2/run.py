@@ -78,7 +78,7 @@ parser.add_argument("--l1size",
 parser.add_argument("--l1latency",
                     default = "1ns")
 parser.add_argument("--l2size",
-                    default = "256kB")
+                    default = "16MB")
 parser.add_argument("--l2latency",
                     default = "10ns")
 parser.add_argument("--rootdir",
