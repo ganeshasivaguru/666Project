@@ -67,15 +67,19 @@ def setCPUClass(options):
     """
 
     TmpClass, test_mem_mode = getCPUClass(options.cpu_type)
+    print(test_mem_mode)
     CPUClass = None
     if TmpClass.require_caches() and \
             not options.caches and not options.ruby:
         fatal("%s must be used with caches" % options.cpu_type)
 
     if options.checkpoint_restore != None:
+        
         if options.restore_with_cpu != options.cpu_type:
+            print("here5")
             CPUClass = TmpClass
             TmpClass, test_mem_mode = getCPUClass(options.restore_with_cpu)
+        
     elif options.fast_forward:
         CPUClass = TmpClass
         TmpClass = AtomicSimpleCPU
@@ -181,6 +185,7 @@ def findCptDir(options, cptdir, testsys):
             (index, start_inst, weight_inst, interval_length, warmup_length))
 
     else:
+        print("here4")
         dirs = listdir(cptdir)
         expr = re.compile('cpt\.([0-9]+)')
         cpts = []
@@ -201,6 +206,7 @@ def findCptDir(options, cptdir, testsys):
     return cpt_starttick, checkpoint_dir
 
 def scriptCheckpoints(options, maxtick, cptdir):
+    print("here2")
     if options.at_instruction or options.simpoint:
         checkpoint_inst = int(options.take_checkpoints)
 
@@ -219,8 +225,9 @@ def scriptCheckpoints(options, maxtick, cptdir):
             exit_cause = exit_event.getCause()
 
         if exit_cause == "a thread reached the max instruction count":
-            m5.checkpoint(joinpath(cptdir, "cpt.%s.%d" % \
-                    (options.bench, checkpoint_inst)))
+            print("HERE")
+            m5.checkpoint(joinpath(cptdir, "cpt.%d" % \
+                    (checkpoint_inst)))
             print("Checkpoint written.")
 
     else:
@@ -304,6 +311,7 @@ def parseSimpointAnalysisFile(options, testsys):
     while True:
         line = simpoint_file.readline()
         if not line:
+            print("break called")
             break
         m = re.match("(\d+)\s+(\d+)", line)
         if m:
@@ -350,6 +358,7 @@ def takeSimpointCheckpoints(simpoints, interval_length, cptdir):
     num_checkpoints = 0
     index = 0
     last_chkpnt_inst_count = -1
+    print("here1")
     for simpoint in simpoints:
         interval, weight, starting_inst_count, actual_warmup_length = simpoint
         if starting_inst_count == last_chkpnt_inst_count:
@@ -380,7 +389,7 @@ def takeSimpointCheckpoints(simpoints, interval_length, cptdir):
         else:
             break
         index += 1
-
+    #print('cpu = ' + )
     print('Exiting @ tick %i because %s' % (m5.curTick(), exit_cause))
     print("%d checkpoints taken" % num_checkpoints)
     sys.exit(code)
@@ -400,7 +409,7 @@ def restoreSimpointCheckpoint():
         if exit_cause == "simpoint starting point found":
             print("Done running SimPoint!")
             sys.exit(exit_event.getCode())
-
+    print("kkk")
     print('Exiting @ tick %i because %s' % (m5.curTick(), exit_cause))
     sys.exit(exit_event.getCode())
 
@@ -658,6 +667,7 @@ def run(options, root, testsys, cpu_class):
               "Checkpoint starts starts from tick: %d", maxtick, cpt_starttick)
 
     if options.standard_switch or cpu_class:
+        print("in here")
         if options.standard_switch:
             print("Switch at instruction count:%s" %
                     str(testsys.cpu[0].max_insts_any_thread))
@@ -712,6 +722,7 @@ def run(options, root, testsys, cpu_class):
 
     # Restore from SimPoint checkpoints
     elif options.restore_simpoint_checkpoint:
+        print("restore!")
         restoreSimpointCheckpoint()
 
     else:

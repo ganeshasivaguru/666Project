@@ -544,7 +544,7 @@ int main(int argc, char *argv[])
 	pthread_mutex_lock(&__intern__);
 	for (i = 0; i < (nprocs) - 1; i++) {
     printf("CREATED THREADS\n");
-    //exit(1);
+    //exit(0);
 		Error = pthread_create(&__tid__[__threads__++], NULL, (void * (*)(void *))(slave), NULL);
 		if (Error != 0) {
 			printf("Error in pthread_create().\n");

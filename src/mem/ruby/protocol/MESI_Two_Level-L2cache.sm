@@ -40,9 +40,9 @@
 
 machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
  : CacheMemory * L2cache;
-   Cycles l2_request_latency := 2;
-   Cycles l2_response_latency := 2;
-   Cycles to_l1_latency := 1;
+   Cycles l2_request_latency := 2;//80;//2; 80
+   Cycles l2_response_latency := 2;//80;//2; 416 -80 = 336
+   Cycles to_l1_latency := 2;//80; 80
 
   // Message Queues
   // From local bank of L2 cache TO the network
@@ -1536,14 +1536,14 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
 
   transition(SS, L2_Replacement_clean, I_I) {
-    send_right_predict;
+    //send_right_predict;
     i_allocateTBE;
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
   }
 
   transition(SS, {L2_Replacement, MEM_Inv}, S_I) {
-    send_right_predict;
+    //send_right_predict;
     i_allocateTBE;
     f_sendInvToSharers;
     rr_deallocateL2CacheBlock;
@@ -1553,6 +1553,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   transition(M, {L1_GETX, Forward_L2_Send_DataX}, MT_MB) {
     d_sendDataToRequestor_not_instr;
     //d_sendDataToRequestor;
+    send_right_predict;
     set_setMRU;
     //uu_profileHit;
     jj_popL1RequestQueue;
@@ -1577,7 +1578,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   transition(M, {L2_Replacement, MEM_Inv}, M_I) {
     i_allocateTBE;
     c_exclusiveReplacement;
-    send_right_predict
+    //send_right_predict
     //clearSelfInvalidators
     rr_deallocateL2CacheBlock;
     
@@ -1585,7 +1586,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   transition(M, L2_Replacement_clean, M_I) {
     i_allocateTBE;
-    send_right_predict
+    //send_right_predict
     c_exclusiveCleanReplacement;
     rr_deallocateL2CacheBlock;
   }
@@ -1608,7 +1609,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   transition(MT, {L1_GETS}, MT_IIB) {
     b_forwardRequestToExclusive_not_instr;
-    send_right_predict;
+    //send_right_predict;
     //uu_profileMiss;
     set_setMRU;
     jj_popL1RequestQueue;
@@ -1630,7 +1631,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   transition(MT, {L2_Replacement, MEM_Inv}, MT_I) {
     i_allocateTBE;
-    send_right_predict;
+    //send_right_predict;
     f_sendInvToSharers;
     
     rr_deallocateL2CacheBlock;
@@ -1639,7 +1640,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   transition(MT, L2_Replacement_clean, MCT_I) {
     i_allocateTBE;
-    send_right_predict;
+    //send_right_predict;
     f_sendInvToSharers;
     
     rr_deallocateL2CacheBlock;

@@ -43,9 +43,9 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
    CacheMemory * L1Icache;
    CacheMemory * L1Dcache;
    int l2_select_num_bits;
-   Cycles l1_request_latency := 2;
-   Cycles l1_response_latency := 2;
-   Cycles to_l2_latency := 1;
+   Cycles l1_request_latency := 2;//80 ;//2; 80
+   Cycles l1_response_latency := 2;//80; //2; 104
+   Cycles to_l2_latency := 1;//80;//1; 80
    bool send_evictions;
    bool enable_prefetch := "False";
 
@@ -512,6 +512,13 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       LTP.strengthenAccuracy(address);
   }
 
+  action(uu_profileDataMiss, "\udm", desc="Profile the demand miss") {
+    L1Dcache.profileDemandMiss();
+  }
+  action(uu_profileDataHit, "\udh", desc="Profile the demand hit") {
+    L1Dcache.profileDemandHit();
+  }
+
   action(send_self_inv_to_dir_CLEAN, "self_clean", desc="send self inv to directory") {
     enqueue(self_inv_to_dir, RequestMsg, 1) {
         out_msg.addr := address;
@@ -936,9 +943,10 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   //*****************************************************
 
   // Transitions for Load/Store/Replacement/WriteBack from transient states
-  transition({IS, IM, IS_I, M_I, SM, SINK_WB_ACK}, {Load, Ifetch, Store, L1_Replacement}) {
+  transition({IS, IM, IS_I, M_I, SM, SINK_WB_ACK, M_I_wait_for_forward}, {Load, Ifetch, Store, L1_Replacement}) {
     z_stallAndWaitMandatoryQueue;
   }
+
 
   transition(SINK_WB_ACK, {Self_Inv_Dir_Ack_Wait_FwdReq}, I){
     //already got the fwd request so pop off and move on
@@ -967,6 +975,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     oo_allocateL1DCacheBlock;
     i_allocateTBE;
     a_issueGETS;
+    uu_profileDataMiss;
     k_popMandatoryQueue;
   }
 
@@ -981,6 +990,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     oo_allocateL1DCacheBlock;
     i_allocateTBE;
     b_issueGETX;
+    uu_profileDataMiss;
     k_popMandatoryQueue;
   }
   
@@ -1010,6 +1020,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   // Transitions from Shared
   transition({S,E,M}, Load) {
     h_load_hit;
+    uu_profileDataHit;
     k_popMandatoryQueue;
   }
 
@@ -1021,6 +1032,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   transition(S, Store, SM) {
     i_allocateTBE;
     c_issueUPGRADE;
+    uu_profileDataMiss;
     k_popMandatoryQueue;
   }
 
@@ -1047,6 +1059,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   transition({E,M}, Store, M) {
     hh_store_hit;
+    uu_profileDataHit;
     k_popMandatoryQueue;
   }
 
@@ -1171,11 +1184,21 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     l_popRequestQueue;
   }
 
-  transition(M_I_wait_for_forward, {Fwd_GETX, Fwd_GETS}, I ){
+  transition(M_I_wait_for_forward, {Fwd_GETX}, I ){
     erase_LTP_forward_entry;
+    dt_sendDataToRequestor_fromTBE;
     s_deallocateTBE;
     l_popRequestQueue
     kd_wakeUpDependents;
+  }
+  transition(M_I_wait_for_forward, {Fwd_GETS}, I ){
+    erase_LTP_forward_entry;
+    dt_sendDataToRequestor_fromTBE;
+    d2t_sendDataToL2_fromTBE;
+    s_deallocateTBE;
+    kd_wakeUpDependents;
+    l_popRequestQueue;
+
   }
 
   transition(M_I, {Fwd_GETS, Fwd_GET_INSTR}, SINK_WB_ACK) {

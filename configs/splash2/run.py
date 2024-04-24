@@ -77,8 +77,6 @@ parser.add_argument("--l1size",
                     default = "1MB")
 parser.add_argument("--l1latency",
                     default = "1ns")
-parser.add_argument("--l2size",
-                    default = "16MB")
 parser.add_argument("--l2latency",
                     default = "10ns")
 parser.add_argument("--rootdir",
@@ -111,7 +109,7 @@ else: #default to timing because Atomic has atomic memory instructions which is 
     cpus = [TimingSimpleCPU(cpu_id = i)
             for i in range(args.num_cpus)]
 
-
+print(args.cpu_type)
 np = args.num_cpus
 numThreads = 1
 (CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(args)
@@ -243,18 +241,26 @@ system.cpu_clk_domain = SrcClockDomain(clock = args.cpu_clock,
 for cpu in system.cpu:
     cpu.clk_domain = system.cpu_clk_domain
 
-Ruby.create_system(args, False, system)
-assert(args.num_cpus == len(system.ruby._cpu_ports))
-system.ruby.clk_domain = SrcClockDomain(clock = args.ruby_clock,
+if(not args.take_checkpoints):
+    Ruby.create_system(args, False, system)
+    assert(args.num_cpus == len(system.ruby._cpu_ports))
+    system.ruby.clk_domain = SrcClockDomain(clock = args.ruby_clock,
                                         voltage_domain = system.voltage_domain)
-for i in range(np):
-    ruby_port = system.ruby._cpu_ports[i]
-    # Create the interrupt controller and connect its ports to Ruby
-    # Note that the interrupt controller is always present but only
-    # in x86 does it have message ports that need to be connected
-    system.cpu[i].createInterruptController()
-    # Connect the cpu's cache ports to Ruby
-    ruby_port.connectCpuPorts(system.cpu[i])
+    for i in range(np):
+        ruby_port = system.ruby._cpu_ports[i]
+        # Create the interrupt controller and connect its ports to Ruby
+        # Note that the interrupt controller is always present but only
+        # in x86 does it have message ports that need to be connected
+        system.cpu[i].createInterruptController()
+        # Connect the cpu's cache ports to Ruby
+        ruby_port.connectCpuPorts(system.cpu[i])
+else:
+    MemClass = Simulation.setMemClass(args)
+    system.membus = SystemXBar()
+    system.system_port = system.membus.cpu_side_ports
+    CacheConfig.config_cache(args, system)
+    MemConfig.config_mem(args, system)
+    config_filesystem(system, args)
 
 # ----------------------
 # Define the root
@@ -311,16 +317,17 @@ system.workload = SEWorkload.init_compatible(root.workload.executable)
 # ----------------------
 
 #if args.timing or args.detailed:    
+#root.system.mem_mode = 'timing'
+#if args.timing or args.detailed:
 root.system.mem_mode = 'timing'
-
 # instantiate configuration
-m5.instantiate()
+#m5.instantiate()
 
 # simulate until program terminates
 #print("Max tick = " + str(m5.MaxTick))
 #exit_event = m5.simulate(1000000000000000) 
-exit_event = m5.simulate(args.abs_max_tick)
+#exit_event = m5.simulate(args.abs_max_tick)
 
-
-print('Exiting @ tick', m5.curTick(), 'because', exit_event.getCause())
+Simulation.run(args, root, system, FutureClass)
+#print('Exiting @ tick', m5.curTick(), 'because', exit_event.getCause())
 
