@@ -139,6 +139,11 @@ NetDest::elementAt(MachineID index)
 {
     return m_bits[vecIndex(index)].elementAt(bitIndex(index.num));
 }
+NodeID
+NetDest::elementAt_int(int index)
+{
+    return m_bits[index].elementAt(NodeID(index));
+}
 
 MachineID
 NetDest::smallestElement() const

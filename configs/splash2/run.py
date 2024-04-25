@@ -241,7 +241,7 @@ system.cpu_clk_domain = SrcClockDomain(clock = args.cpu_clock,
 for cpu in system.cpu:
     cpu.clk_domain = system.cpu_clk_domain
 
-if(not args.take_checkpoints):
+if(not args.take_checkpoints and not args.checkpoint_at_end):
     Ruby.create_system(args, False, system)
     assert(args.num_cpus == len(system.ruby._cpu_ports))
     system.ruby.clk_domain = SrcClockDomain(clock = args.ruby_clock,

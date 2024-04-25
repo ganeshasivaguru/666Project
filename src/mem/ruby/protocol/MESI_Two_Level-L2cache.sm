@@ -40,9 +40,9 @@
 
 machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
  : CacheMemory * L2cache;
-   Cycles l2_request_latency := 2;//80;//2; 80
-   Cycles l2_response_latency := 2;//80;//2; 416 -80 = 336
-   Cycles to_l1_latency := 2;//80; 80
+   Cycles l2_request_latency := 80;//2;//80;//2; 80
+   Cycles l2_response_latency := 80; //336;//2;//80;//2; 416 -80 = 336
+   Cycles to_l1_latency := 80; //1;//80; 80
 
   // Message Queues
   // From local bank of L2 cache TO the network
@@ -540,74 +540,74 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
 
   // ACTIONS
-  /*
-  action(increaseStrength, "right_pred", desc="self right pred"){
-    int id := machineIDToNodeID(machineID);
-    if(id == 0)
-      L1_LTP0.strengthenAccuracy(address);
-    else if(id == 1)
-      L1_LTP1.strengthenAccuracy(address);
-    else if(id == 2)
-      L1_LTP2.strengthenAccuracy(address);
-    else if(id == 3)
-      L1_LTP3.strengthenAccuracy(address);
-    else if(id == 4)
-      L1_LTP4.strengthenAccuracy(address);
-    else if(id == 5)
-      L1_LTP5.strengthenAccuracy(address);
-    else if(id == 6)
-      L1_LTP6.strengthenAccuracy(address);
-    else if(id == 7)
-      L1_LTP7.strengthenAccuracy(address);
-    else if(id == 8)
-      L1_LTP8.strengthenAccuracy(address);
-    else if(id == 9)
-      L1_LTP9.strengthenAccuracy(address);
-    else if(id == 10)
-      L1_LTP10.strengthenAccuracy(address);
-    else if(id == 11)
-      L1_LTP11.strengthenAccuracy(address);
-    else if(id == 12)
-      L1_LTP12.strengthenAccuracy(address);
-    else if(id == 13)
-      L1_LTP13.strengthenAccuracy(address);
-    else if(id == 14)
-      L1_LTP14.strengthenAccuracy(address);
-    else if(id == 15)
-      L1_LTP15.strengthenAccuracy(address);
-    else if(id == 16)
-      L1_LTP16.strengthenAccuracy(address);
-    else if(id == 17)
-      L1_LTP17.strengthenAccuracy(address);
-    else if(id == 18)
-      L1_LTP18.strengthenAccuracy(address);
-    else if(id == 19)
-      L1_LTP19.strengthenAccuracy(address);
-    else if(id == 20)
-      L1_LTP20.strengthenAccuracy(address);
-    else if(id == 21)
-      L1_LTP21.strengthenAccuracy(address);
-    else if(id == 22)
-      L1_LTP22.strengthenAccuracy(address);
-    else if(id == 23)
-      L1_LTP23.strengthenAccuracy(address);
-    else if(id == 24)
-      L1_LTP24.strengthenAccuracy(address);
-    else if(id == 25)
-      L1_LTP25.strengthenAccuracy(address);
-    else if(id == 26)
-      L1_LTP26.strengthenAccuracy(address);
-    else if(id == 27)
-      L1_LTP27.strengthenAccuracy(address);
-    else if(id == 28)
-      L1_LTP28.strengthenAccuracy(address);
-    else if(id == 29)
-      L1_LTP29.strengthenAccuracy(address);
-    else if(id == 30)
-      L1_LTP30.strengthenAccuracy(address);
-    else if(id == 31)
-      L1_LTP31.strengthenAccuracy(address);
-  }*/
+  
+  void increaseStrengthNode(NodeID node, Addr address){
+    int id := NodeIDto_int(node);
+    if(id == 0){
+      L1_LTP0.strengthenAccuracy(address);}
+    else if(id == 1){
+      L1_LTP1.strengthenAccuracy(address);}
+    else if(id == 2){
+      L1_LTP2.strengthenAccuracy(address);}
+    else if(id == 3){
+      L1_LTP3.strengthenAccuracy(address);}
+    else if(id == 4){
+      L1_LTP4.strengthenAccuracy(address);}
+    else if(id == 5){
+      L1_LTP5.strengthenAccuracy(address);}
+    else if(id == 6){
+      L1_LTP6.strengthenAccuracy(address);}
+    else if(id == 7){
+      L1_LTP7.strengthenAccuracy(address);}
+    else if(id == 8){
+      L1_LTP8.strengthenAccuracy(address);}
+    else if(id == 9){
+      L1_LTP9.strengthenAccuracy(address);}
+    else if(id == 10){
+      L1_LTP10.strengthenAccuracy(address);}
+    else if(id == 11){
+      L1_LTP11.strengthenAccuracy(address);}
+    else if(id == 12){
+      L1_LTP12.strengthenAccuracy(address);}
+    else if(id == 13){
+      L1_LTP13.strengthenAccuracy(address);}
+    else if(id == 14){
+      L1_LTP14.strengthenAccuracy(address);}
+    else if(id == 15){
+      L1_LTP15.strengthenAccuracy(address);}
+    else if(id == 16){
+      L1_LTP16.strengthenAccuracy(address);}
+    else if(id == 17){
+      L1_LTP17.strengthenAccuracy(address);}
+    else if(id == 18){
+      L1_LTP18.strengthenAccuracy(address);}
+    else if(id == 19){
+      L1_LTP19.strengthenAccuracy(address);}
+    else if(id == 20){
+      L1_LTP20.strengthenAccuracy(address);}
+    else if(id == 21){
+      L1_LTP21.strengthenAccuracy(address);}
+    else if(id == 22){
+      L1_LTP22.strengthenAccuracy(address);}
+    else if(id == 23){
+      L1_LTP23.strengthenAccuracy(address);}
+    else if(id == 24){
+      L1_LTP24.strengthenAccuracy(address);}
+    else if(id == 25){
+      L1_LTP25.strengthenAccuracy(address);}
+    else if(id == 26){
+      L1_LTP26.strengthenAccuracy(address);}
+    else if(id == 27){
+      L1_LTP27.strengthenAccuracy(address);}
+    else if(id == 28){
+      L1_LTP28.strengthenAccuracy(address);}
+    else if(id == 29){
+      L1_LTP29.strengthenAccuracy(address);}
+    else if(id == 30){
+      L1_LTP30.strengthenAccuracy(address);}
+    else if(id == 31){
+      L1_LTP31.strengthenAccuracy(address);}
+  }
   void decreaseStrengthNode(MachineID machineID, Addr address){
     int id := machineIDToNodeID_int(machineID);
     if(id == 0){
@@ -680,8 +680,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
 
   action(send_right_predict, "right_pred", desc="self right pred"){
-    if(cache_entry.Self_Invalidators.count() > 0){
-      enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+    /*if(cache_entry.Self_Invalidators.count() > 0){
+      enqueue(dir_to_cache_self, RequestMsg, 1) {
         out_msg.addr := address;
         out_msg.Type := CoherenceRequestType:SELF_INV_RIGHT_PREDICT;
         out_msg.Requestor := machineID;
@@ -689,7 +689,606 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         out_msg.MessageSize := MessageSizeType:Control;
       }
       getCacheEntry(address).Self_Invalidators.clear();
+    }*/
+    if(cache_entry.Self_Invalidators.count() > 0){
+      if(getCacheEntry(address).Self_Invalidators.count() == 1){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);  
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 2){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 3){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 4){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 5){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 6){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 7){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 8){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 9){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 10){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 11){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 12){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 13){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 14){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 15){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 16){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 17){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 18){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 19){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 20){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 21){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 22){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 23){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 24){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 25){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(24), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 26){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(24), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(25), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 27){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(24), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(25), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(26), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 28){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(24), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(25), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(26), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(27), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 29){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(24), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(25), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(26), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(27), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(28), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 30){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(24), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(25), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(26), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(27), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(28), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(29), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 31){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(24), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(25), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(26), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(27), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(28), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(29), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(30), address);
+      }
+      else if(getCacheEntry(address).Self_Invalidators.count() == 32){
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(1), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(2), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(3), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(4), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(5), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(6), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(7), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(8), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(9), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(10), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(11), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(12), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(13), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(14), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(15), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(16), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(17), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(18), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(19), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(20), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(21), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(22), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(23), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(24), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(25), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(26), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(27), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(28), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(29), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(30), address);
+        increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(31), address);
+      }
+      else{
+        error("number of self invalidators exceed 32");
+      }
+      getCacheEntry(address).Self_Invalidators.clear();
     }
+    
   }
 
   action(clearSelfInvalidators, "clear_list", desc="clear self inv"){
@@ -702,7 +1301,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
       peek(self_inv_in, RequestMsg) {
         //if there is a forward entry, send wait
         if(LTP.search_forward(in_msg.addr,in_msg.Requestor) == 1){
-          enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+          enqueue(dir_to_cache_self, RequestMsg, 1) {
             out_msg.addr := address;
             out_msg.Type := CoherenceRequestType:Self_Inv_Dir_Ack_Wait_FwdReq;
             out_msg.Requestor := machineID;
@@ -711,7 +1310,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
           }
         }
         else{
-          enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+          enqueue(dir_to_cache_self, RequestMsg, 1) {
               out_msg.addr := address;
               out_msg.Type := CoherenceRequestType:SELF_INV_DIR_ACK;
               out_msg.Requestor := machineID;
@@ -725,7 +1324,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
        /* if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
             //wrong prediction
-            enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+            enqueue(dir_to_cache_self, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
                 out_msg.Requestor := machineID;
@@ -808,7 +1407,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     peek(L1RequestL2Network_in, RequestMsg) {
         if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
             //wrong prediction
-            /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+            /*enqueue(dir_to_cache_self, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
                 out_msg.Requestor := machineID;
@@ -891,7 +1490,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     peek(L1RequestL2Network_in, RequestMsg) {
       if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
           //wrong prediction
-          /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+          /*enqueue(dir_to_cache_self, RequestMsg, 1) {
               out_msg.addr := address;
               out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
               out_msg.Requestor := machineID;
@@ -937,7 +1536,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
       }
       if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
         //wrong prediction
-        /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+        /*enqueue(dir_to_cache_self, RequestMsg, 1) {
             out_msg.addr := address;
             out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
             out_msg.Requestor := machineID;
@@ -968,7 +1567,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     peek(L1RequestL2Network_in, RequestMsg) {
         if(getCacheEntry(address).Self_Invalidators.count() > 0 && getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
             //wrong prediction
-            /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+            /*enqueue(dir_to_cache_self, RequestMsg, 1) {
                 out_msg.addr := address;
                 out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
                 out_msg.Requestor := machineID;
@@ -1170,7 +1769,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
       assert(is_valid(tbe));
         if(getCacheEntry(address).Self_Invalidators.count() > 0 && getCacheEntry(address).Self_Invalidators.isElement(in_msg.Requestor)){
           //wrong prediction
-          /*enqueue(L1RequestL2Network_out, RequestMsg, 1) {
+          /*enqueue(dir_to_cache_self, RequestMsg, 1) {
               out_msg.addr := address;
               out_msg.Type := CoherenceRequestType:SELF_INV_WRONG_PREDICT;
               out_msg.Requestor := machineID;

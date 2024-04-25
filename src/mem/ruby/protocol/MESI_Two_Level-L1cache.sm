@@ -43,9 +43,9 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
    CacheMemory * L1Icache;
    CacheMemory * L1Dcache;
    int l2_select_num_bits;
-   Cycles l1_request_latency := 2;//80 ;//2; 80
-   Cycles l1_response_latency := 2;//80; //2; 104
-   Cycles to_l2_latency := 1;//80;//1; 80
+   Cycles l1_request_latency := 80; //2;//80 ;//2; 80
+   Cycles l1_response_latency := 80;//104;//2;//80; //2; 104
+   Cycles to_l2_latency := 80;//1;//80;//1; 80
    bool send_evictions;
    bool enable_prefetch := "False";
 
@@ -299,7 +299,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   // Response  L1 Network - response msg to this L1 cache
   in_port(responseL1Network_in, ResponseMsg, responseToL1Cache, rank = 3) {
-    if(!LTP.blocks_to_be_self_inv_empty()){
+    /*if(!LTP.blocks_to_be_self_inv_empty()){
             //do self inv instead
             //pop the front
             Addr address := LTP.pop_self_inv();
@@ -307,7 +307,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
             TBE tbe := TBEs[address];
             trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
         }
-    else if (responseL1Network_in.isReady(clockEdge())) {
+    else */if (responseL1Network_in.isReady(clockEdge())) {
       peek(responseL1Network_in, ResponseMsg, block_on="addr") {
         LTP.set_LTP_id(machineID);
         assert(in_msg.Destination.isElement(machineID));
@@ -348,7 +348,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   // Request InterChip network - request from this L1 cache to the shared L2
   in_port(requestL1Network_in, RequestMsg, requestToL1Cache, rank = 1) {
     //LTP.set_LTP_id(machineID);
-    if(!LTP.blocks_to_be_self_inv_empty()){
+    /*if(!LTP.blocks_to_be_self_inv_empty()){
       //do self inv instead
       //pop the front
       Addr address := LTP.pop_self_inv();
@@ -356,7 +356,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       TBE tbe := TBEs[address];
       trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
     }
-    else if(requestL1Network_in.isReady(clockEdge())) {
+    else*/ if(requestL1Network_in.isReady(clockEdge())) {
       peek(requestL1Network_in, RequestMsg, block_on="addr") {
         LTP.set_LTP_id(machineID);
         assert(in_msg.Destination.isElement(machineID));
@@ -395,7 +395,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   // Mandatory Queue betweens Node's CPU and it's L1 caches
   in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, desc="...", rank = 0) {
-    if(!LTP.blocks_to_be_self_inv_empty()){
+    /*if(!LTP.blocks_to_be_self_inv_empty()){
       //assert(1==0);
       //do self inv instead
       //pop the front
@@ -404,7 +404,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       TBE tbe := TBEs[address];
       trigger(Event:Self_Inv_Cache, address, cache_entry,tbe);
     }
-    else if (mandatoryQueue_in.isReady(clockEdge())) {
+    else */if (mandatoryQueue_in.isReady(clockEdge())) {
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
         LTP.set_LTP_id(machineID);
         // Check for data access to blocks in I-cache and ifetchs to blocks in D-cache
@@ -478,7 +478,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   in_port(fromDir_self_inv_in, RequestMsg, fromDir_self_inv,rank = 2) {
     if (fromDir_self_inv_in.isReady(clockEdge())) {
       peek(fromDir_self_inv_in, RequestMsg) {
-        error("got something here");
+        //error("got something here");
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
         if(in_msg.Type == CoherenceRequestType:SELF_INV_RIGHT_PREDICT){
@@ -491,8 +491,11 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
         if (in_msg.Type == CoherenceRequestType:SELF_INV_DIR_ACK) {
             trigger(Event:Self_Inv_Dir_Ack, in_msg.addr, cache_entry, tbe);
         }
+        if (in_msg.Type == CoherenceRequestType:Self_Inv_Dir_Ack_Wait_FwdReq) {
+            trigger(Event:Self_Inv_Dir_Ack_Wait_FwdReq, in_msg.addr, cache_entry, tbe);
+        }
         else {
-            error("Unexpected message type for from L2Cache");
+            error("Unexpected message type for from L1Cache");
         }
       }
     }
@@ -952,7 +955,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     //already got the fwd request so pop off and move on
     //popDirSelfInvQueue;
     s_deallocateTBE;
-    l_popRequestQueue;
+    popDirSelfInvQueue;
     kd_wakeUpDependents;
 
   }
@@ -964,7 +967,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   // did s->I in the past and the ack is delayed
   transition({I, NP, IM}, {Self_Inv_Dir_Ack}){
-    l_popRequestQueue;
+    popDirSelfInvQueue;
   }
   transition({NP,I}, Self_Inv_Cache){
     decreaseStrength;
@@ -1003,18 +1006,18 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   transition({NP, I, M, S, M_I, IM, IS, E, IS_I}, Self_Inv_Wrong) {
     decreaseStrength;
     //popDirSelfInvQueue
-    l_popRequestQueue
+    popDirSelfInvQueue
   }
   //how did it get into NP?
   transition(NP, Self_Inv_Correct){
     increaseStrength;
     //popDirSelfInvQueue
-    l_popRequestQueue
+    popDirSelfInvQueue
   }
   transition({I, IM, M_I, IS, IS_I}, Self_Inv_Correct){
     increaseStrength;
     //popDirSelfInvQueue;
-    l_popRequestQueue
+    popDirSelfInvQueue
   }
 
   // Transitions from Shared
@@ -1121,11 +1124,11 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       //ff_deallocateL1CacheBlock; 
       //s_deallocateTBE  
       //popDirSelfInvQueue;
-      l_popRequestQueue   
+      popDirSelfInvQueue   
   }
 
   transition(IS, Self_Inv_Dir_Ack){
-     l_popRequestQueue
+     popDirSelfInvQueue
   }
 
   transition(M_I, WB_Ack, I) {
@@ -1138,7 +1141,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     //s_deallocateTBE
     s_deallocateTBE;
     //popDirSelfInvQueue;
-    l_popRequestQueue
+    popDirSelfInvQueue
     kd_wakeUpDependents;
   }
 
@@ -1181,7 +1184,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   }
 
   transition(M_I, Self_Inv_Dir_Ack_Wait_FwdReq , M_I_wait_for_forward){
-    l_popRequestQueue;
+    popDirSelfInvQueue;
   }
 
   transition(M_I_wait_for_forward, {Fwd_GETX}, I ){
@@ -1326,6 +1329,6 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
    // popDirSelfInvQueue;
    //ff_deallocateL1CacheBlock
    kd_wakeUpDependents;
-   l_popRequestQueue
+   popDirSelfInvQueue
   }
 }

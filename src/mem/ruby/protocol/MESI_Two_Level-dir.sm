@@ -28,8 +28,8 @@
 
 machine(MachineType:Directory, "MESI Two Level directory protocol")
  : DirectoryMemory * directory;
-   Cycles to_mem_ctrl_latency := 1;
-   Cycles directory_latency := 6;
+   Cycles to_mem_ctrl_latency := 80;//1;
+   Cycles directory_latency := 80;//6;
 
    MessageBuffer * requestToDir, network="From", virtual_network="0",
         vnet_type="request";

@@ -76,6 +76,11 @@ machineIDToNodeID_int(MachineID machID)
 {
     return int(machID.num);
 }
+inline int
+NodeIDto_int(NodeID node)
+{
+    return int(node);
+}
 
 inline MachineType
 machineIDToMachineType(MachineID machID)

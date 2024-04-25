@@ -37,6 +37,7 @@ MachineID mapAddressToRange(Addr addr, MachineType type,
 NetDest broadcast(MachineType type);
 NodeID machineIDToNodeID(MachineID machID);
 int machineIDToNodeID_int(MachineID machID);
+int NodeIDto_int(NodeID node);
 NodeID machineIDToVersion(MachineID machID);
 MachineType machineIDToMachineType(MachineID machID);
 MachineID createMachineID(MachineType t, NodeID i);

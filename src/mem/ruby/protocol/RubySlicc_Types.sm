@@ -157,6 +157,7 @@ structure (NetDest, external = "yes", non_obj="yes") {
   MachineID smallestElement(MachineType);
   NetDest OR(NetDest);
   NetDest AND(NetDest);
+  NodeID elementAt_int(int index);
 }
 
 structure (Sequencer, external = "yes") {

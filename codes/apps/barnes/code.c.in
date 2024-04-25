@@ -449,7 +449,7 @@ void SlaveStart()
    while (Local[ProcessId].tnow < tstop + 0.1 * dtime) {
       stepsystem(ProcessId);
 //      printtree(Global->G_root);
-//      printf("Going to next step!!!\n");
+        printf("processor %d Going to next step!!!\n", ProcessId);
    }
 }
 
@@ -622,7 +622,7 @@ void stepsystem(long ProcessId)
     long partitionstart, partitionend;
     long treebuildstart, treebuildend;
     long forcecalcstart, forcecalcend;
-
+      printf("processor %d in step \n",ProcessId);
     if (Local[ProcessId].nstep == 2) {
 /* POSSIBLE ENHANCEMENT:  Here is where one might reset the
    statistics that one is measuring about the parallel execution */
@@ -783,6 +783,7 @@ void ComputeForces(long ProcessId)
 
 void find_my_initial_bodies(bodyptr btab, long nbody, long ProcessId)
 {
+  printf("start processor %d\n", ProcessId);
   long extra,offset,i;
 
   Local[ProcessId].mynbody = nbody / NPROC;
@@ -799,6 +800,7 @@ void find_my_initial_bodies(bodyptr btab, long nbody, long ProcessId)
      Local[ProcessId].mybodytab[i] = &(btab[offset+i]);
   }
   BARRIER(Global->Barstart,NPROC);
+  printf("end processor %d\n", ProcessId);
 }
 
 

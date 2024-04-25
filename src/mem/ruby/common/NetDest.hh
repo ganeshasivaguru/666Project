@@ -96,7 +96,11 @@ class NetDest
     // get element for a index
     NodeID elementAt(MachineID index);
 
+    NodeID elementAt_int(int index);
+
     void print(std::ostream& out) const;
+
+    NodeID elementAt_int(int index) const;
 
   private:
     // returns a value >= MachineType_base_level("this machine")

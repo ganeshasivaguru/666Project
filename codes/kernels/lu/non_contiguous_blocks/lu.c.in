@@ -44,7 +44,7 @@ MAIN_ENV
 
 #define MAXRAND					32767.0
 #define DEFAULT_N				128
-#define DEFAULT_P				1
+#define DEFAULT_P				32
 #define DEFAULT_B				16
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #define PAGE_SIZE				4096
@@ -164,11 +164,13 @@ int main(int argc, char *argv[])
   a = (double *) G_MALLOC(n*n*sizeof(double));
   if (a == NULL) {
 	  printerr("Could not malloc memory for a.\n");
+    printf("error line 167\n");
 	  exit(-1);
   }
   rhs = (double *) G_MALLOC(n*sizeof(double));
   if (rhs == NULL) {
 	  printerr("Could not malloc memory for rhs.\n");
+    printf("error line 173\n");
 	  exit(-1);
   }
 
@@ -181,21 +183,27 @@ int main(int argc, char *argv[])
 
   if (Global == NULL) {
     printerr("Could not malloc memory for Global\n");
+    printf("error line 186\n");
     exit(-1);
   } else if (Global->t_in_fac == NULL) {
     printerr("Could not malloc memory for Global->t_in_fac\n");
+    printf("error line 190\n");
     exit(-1);
   } else if (Global->t_in_mod == NULL) {
     printerr("Could not malloc memory for Global->t_in_mod\n");
+    printf("error line 194\n");
     exit(-1);
   } else if (Global->t_in_solve == NULL) {
     printerr("Could not malloc memory for Global->t_in_solve\n");
+    printf("error line 198\n");
     exit(-1);
   } else if (Global->t_in_bar == NULL) {
     printerr("Could not malloc memory for Global->t_in_bar\n");
+    printf("error line 202\n");
     exit(-1);
   } else if (Global->completion == NULL) {
     printerr("Could not malloc memory for Global->completion\n");
+    printf("error line 206\n");
     exit(-1);
   }
 
@@ -214,7 +222,7 @@ int main(int argc, char *argv[])
   }
 
   SPLASH3_ROI_BEGIN();
-
+  //exit(1);
   CREATE(SlaveStart, P);
   WAIT_FOR_END(P);
 
@@ -330,6 +338,7 @@ void SlaveStart()
    processors to avoid migration */
 
   OneSolve(n, block_size, MyNum, dostats);
+  printf("id: %d finished\n",MyNum);
 }
 
 
@@ -341,6 +350,7 @@ void OneSolve(long n, long block_size, long MyNum, long dostats)
   lc = (struct LocalCopies *) malloc(sizeof(struct LocalCopies));
   if (lc == NULL) {
     fprintf(stderr,"Proc %ld could not malloc memory for lc\n",MyNum);
+    printf("error line 352\n");
     exit(-1);
   }
   lc->t_in_fac = 0.0;
@@ -640,6 +650,7 @@ void CheckResult(long n, double *a, double *rhs)
   y = (double *) malloc(n*sizeof(double));
   if (y == NULL) {
     printerr("Could not malloc memory for y\n");
+    printf("error line 652\n");
     exit(-1);
   }
   for (j=0; j<n; j++) {
