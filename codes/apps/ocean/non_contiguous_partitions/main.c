@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
      case 'n': im = atoi(optarg);
                if (im > IMAX) {
                  printerr("Max grid size exceeded\n");
+
                  exit(-1);
                }
                if (log_2(im-2) == -1) {
@@ -198,6 +199,7 @@ int main(int argc, char *argv[])
    while (logtest != 1) {
      if (logtest%2 != 0) {
        printerr("Cannot determine number of multigrid levels\n");
+       printf("main line 202\n");
        exit(-1);
      }
      logtest = logtest / 2;
@@ -205,6 +207,7 @@ int main(int argc, char *argv[])
    }
 
    if (numlev > MAX_LEVELS) {
+     printf("main line 210\n");
      printerr("Max grid levels exceeded for multigrid\n");
      exit(-1);
    }
@@ -382,6 +385,7 @@ int main(int argc, char *argv[])
      j--;
    }
    if (xprocs == 0) {
+     printf("main line 388\n");
      printerr("Could not find factors for subblocking\n");
      exit(-1);
    }
@@ -641,5 +645,5 @@ long log_2(long number)
 
 void printerr(char *s)
 {
-  fprintf(stderr,"ERROR: %s\n",s);
+  printf(stderr,"ERROR: %s\n",s);
 }

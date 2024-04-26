@@ -549,6 +549,7 @@ pthread_mutex_unlock(&((bars->sl_onetime).bar_mutex));}
 /* POSSIBLE ENHANCEMENT:  Here is where one might reset the
    statistics that one is measuring about the parallel execution */
        }
+       printf("step = %d for processor %d\n",nstep, procid);
 
        slave2(procid,firstrow,lastrow,numrows,firstcol,lastcol,numcols);
 

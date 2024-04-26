@@ -153,6 +153,7 @@ pthread_mutex_unlock(&((bars->error_barrier).bar_mutex));}
 /* max work exceeded                                               */
          flag1 = 1;
          fprintf(stderr,"ERROR: Maximum work limit %0.5f exceeded\n",wmax);
+         printf("multi line 114\n");
          exit(-1);
        } else {
 /* if we have not converged                                        */

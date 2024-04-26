@@ -469,7 +469,7 @@ void slave_sort()
 
    rank_me_mynum = rank_me[MyNum];
    rank_ff_mynum = gp[MyNum].rank_ff;
-   for (loopnum=0;loopnum<max_num_digits;loopnum++) {
+   for (loopnum=0;loopnum<2;loopnum++) { //for (loopnum=0;loopnum<max_num_digits;loopnum++) {
      shiftnum = (loopnum * log2_radix);
      bb = (radix-1) << shiftnum;
 

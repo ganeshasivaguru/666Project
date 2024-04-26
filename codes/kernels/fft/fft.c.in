@@ -496,7 +496,7 @@ double TouchArray(double *x, double *scratch, double *u, double *upriv, long MyF
   for (j=0;j<2*(rootN-1);j++) {
     tot += upriv[j];
   }   
-  for (j=MyFirst; j<MyLast; j++) {
+  for (j=MyFirst; j<MyFirst+2; j++) { //for (j=MyFirst; j<MyLast; j++) {
     k = j * (rootN + pad_length);
     for (i=0;i<rootN;i++) {
       tot += x[2*(k+i)] + x[2*(k+i)+1] + 

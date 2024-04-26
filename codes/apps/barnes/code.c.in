@@ -446,7 +446,9 @@ void SlaveStart()
    find_my_initial_bodies(bodytab, nbody, ProcessId);
 
    /* main loop */
-   while (Local[ProcessId].tnow < tstop + 0.1 * dtime) {
+   int num_iter = 0; //do 2 iterations
+   while ((Local[ProcessId].tnow < tstop + 0.1 * dtime) & num_iter < 2) {
+      num_iter++;
       stepsystem(ProcessId);
 //      printtree(Global->G_root);
         printf("processor %d Going to next step!!!\n", ProcessId);
