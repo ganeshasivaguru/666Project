@@ -2547,7 +2547,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     o_popIncomingResponseQueue;
   }
   
-  transition({MCT_I}, Self_Inv_demoted_dirty){//used to be stall
+  transition({MCT_I, MT_I}, Self_Inv_demoted_dirty){//used to be stall
    
     addReqToInvalidators
     removeReqFromSharers_self_inv
