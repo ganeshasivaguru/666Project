@@ -510,7 +510,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
                   if(entry.Sharers.count() == 1 && entry.Sharers.isElement(in_msg.Requestor)){
                       trigger(Event:Self_Inv_Only_Sharer, in_msg.addr,entry, tbe);
                   }
-                  else if(LTP.search_forward(in_msg.addr,in_msg.Requestor) == 1){
+                  else if(LTP.search_forward(in_msg.addr,machineIDToNodeID_int(in_msg.Requestor)) == 1){
                     trigger(Event:Self_Inv_Forward_Sent, in_msg.addr,entry, tbe);
                   }
                   else{
@@ -518,7 +518,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
                   }
               }
               else if(in_msg.Type == CoherenceRequestType:SELF_INV_DIRTY){
-                  if(LTP.search_forward(in_msg.addr,in_msg.Requestor) == 1){
+                  if(LTP.search_forward(in_msg.addr,machineIDToNodeID_int(in_msg.Requestor)) == 1){
                     //trigger special event
                     trigger(Event:Self_Inv_Forward_Sent, in_msg.addr,entry, tbe);
 
@@ -607,6 +607,9 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
       L1_LTP30.strengthenAccuracy(address);}
     else if(id == 31){
       L1_LTP31.strengthenAccuracy(address);}
+    else{
+      error("id did not match\n");
+    }
   }
   void decreaseStrengthNode(MachineID machineID, Addr address){
     int id := machineIDToNodeID_int(machineID);
@@ -684,6 +687,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
       }
       else if(cache_entry.Self_Invalidators.count() > 0){
+        //assert(1==0);
         if(getCacheEntry(address).Self_Invalidators.count() == 1){
           increaseStrengthNode(getCacheEntry(address).Self_Invalidators.elementAt_int(0), address);  
         }
@@ -1906,7 +1910,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   action(sendSelfInvAck, "self", desc="Send the self inv ack") {
       peek(self_inv_in, RequestMsg) {
         //if there is a forward entry, send wait
-        if(LTP.search_forward(in_msg.addr,in_msg.Requestor) == 1){
+        if(LTP.search_forward(in_msg.addr,machineIDToNodeID_int(in_msg.Requestor)) == 1){
           enqueue(dir_to_cache_self, RequestMsg, 1) {
             out_msg.addr := address;
             out_msg.Type := CoherenceRequestType:Self_Inv_Dir_Ack_Wait_FwdReq;
@@ -1978,7 +1982,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   action(b_forwardRequestToExclusive, "b", desc="Forward request to the exclusive L1") {
     peek(L1RequestL2Network_in, RequestMsg) {
-      LTP.add_forward_queue(in_msg.addr,cache_entry.Exclusive);
+      LTP.add_forward_queue(in_msg.addr,machineIDToNodeID_int(cache_entry.Exclusive));
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
         out_msg.addr := address;
@@ -1996,7 +2000,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         decreaseStrengthNode(in_msg.Requestor, address);
         getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
       }
-      LTP.add_forward_queue(in_msg.addr,cache_entry.Exclusive);
+      LTP.add_forward_queue(in_msg.addr,machineIDToNodeID_int(cache_entry.Exclusive));
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
         assert(is_valid(cache_entry));
         out_msg.addr := address;

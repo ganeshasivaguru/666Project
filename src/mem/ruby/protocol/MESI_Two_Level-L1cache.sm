@@ -309,7 +309,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
         }
     else if (responseL1Network_in.isReady(clockEdge())) {
       peek(responseL1Network_in, ResponseMsg, block_on="addr") {
-        LTP.set_LTP_id(machineID);
+        LTP.set_LTP_id(machineIDToNodeID_int(machineID));
         assert(in_msg.Destination.isElement(machineID));
 
         Entry cache_entry := getCacheEntry(in_msg.addr);
@@ -358,7 +358,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     }
     else if(requestL1Network_in.isReady(clockEdge())) {
       peek(requestL1Network_in, RequestMsg, block_on="addr") {
-        LTP.set_LTP_id(machineID);
+        LTP.set_LTP_id(machineIDToNodeID_int(machineID));
         assert(in_msg.Destination.isElement(machineID));
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
@@ -406,7 +406,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     }
     else if (mandatoryQueue_in.isReady(clockEdge())) {
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
-        LTP.set_LTP_id(machineID);
+        LTP.set_LTP_id(machineIDToNodeID_int(machineID));
         // Check for data access to blocks in I-cache and ifetchs to blocks in D-cache
         if (in_msg.Type == RubyRequestType:IFETCH) {
           // ** INSTRUCTION ACCESS ***

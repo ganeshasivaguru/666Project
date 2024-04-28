@@ -79,11 +79,11 @@ LastTouchPred::debug_print(){
 }
 
 void
-LastTouchPred::set_LTP_id(MachineID id){
+LastTouchPred::set_LTP_id(int id){
     LTP_id = id;
 }
 
-MachineID
+int
 LastTouchPred::get_LTP_id(){
     return LTP_id;
 }
@@ -125,13 +125,13 @@ LastTouchPred::blocks_to_be_self_inv_empty(){
 }
 
 void
-LastTouchPred::add_forward_queue(Addr address, MachineID machine_node){
+LastTouchPred::add_forward_queue(Addr address, int machine_node){
     
     forward_request_table.push_back(std::make_pair(address, machine_node));
 }
 
 void
-LastTouchPred::remove_forward_queue(Addr address, MachineID machine_node){
+LastTouchPred::remove_forward_queue(Addr address, int machine_node){
     int found_entry = 0;
     for(int i = 0; i < forward_request_table.size(); i++ ){
         if(forward_request_table[i].first == address && forward_request_table[i].second == machine_node){
@@ -143,7 +143,7 @@ LastTouchPred::remove_forward_queue(Addr address, MachineID machine_node){
 }
 
 int
-LastTouchPred::search_forward(Addr address, MachineID machine_node){
+LastTouchPred::search_forward(Addr address, int machine_node){
      int found_entry = 0;
     for(int i = 0; i < forward_request_table.size(); i++ ){
         if(forward_request_table[i].first == address && forward_request_table[i].second == machine_node){
@@ -159,7 +159,7 @@ void
 LastTouchPred::incrementAccuracy(Addr block_tag, int value){
     num_right_invalidations++;
     //inform("id = %d: increment block = %x, sig = %x\n",LTP_id.getNum(), block_tag, value);
-    //inform("id = %d, num right = %d\n",LTP_id,num_right_invalidations);
+    inform("id = %d, num right = %d\n",LTP_id,num_right_invalidations);
     //inform("increment\n");
     for (int i = 0; i <LTP_sig_table.size(); i++){
         for(int x = 0; x <LTP_sig_table[i].size(); x++){
@@ -179,7 +179,7 @@ LastTouchPred::incrementAccuracy(Addr block_tag, int value){
 void
 LastTouchPred::decrementAccuracy(Addr block_tag, int value){
     num_wrong_invalidations++;
-    //inform("id = %d, num wrong = %d\n",LTP_id,num_wrong_invalidations);
+    inform("id = %d, num wrong = %d\n",LTP_id,num_wrong_invalidations);
     //inform("decrement\n");
     //inform("id = %d: decrement block = %x, sig = %x\n",LTP_id.getNum(), block_tag, value);
     for (int i = 0; i <LTP_sig_table.size(); i++){
@@ -197,28 +197,47 @@ LastTouchPred::decrementAccuracy(Addr block_tag, int value){
     }
 }
 void 
-LastTouchPred::weakenAccuracy(Addr block_tag){
+LastTouchPred::strengthenAccuracy(Addr block_tag){
     //search through last touch array and find last LT signature for this block
+    //inform("size = %d\n",last_touched_signature.size());
+    //inform("weaken\n");
+    //inform("strength size = %d\n",last_touched_signature.size());
+    //inform("strength id = %d\n", LTP_id);
     for(int i = 0; i < last_touched_signature.size(); i++){
+        //inform("stength size = %d\n",last_touched_signature.size());
         if(last_touched_signature[i].size() > 0 && last_touched_signature[i][0][0] == block_tag ){
-            decrementAccuracy(block_tag,last_touched_signature[i][0][1]);
+            
+            incrementAccuracy(block_tag,last_touched_signature[i][0][1]);
+            
             last_touched_signature[i].erase(last_touched_signature[i].begin());
+            //inform("after size = %d\n",last_touched_signature[i].size());
+
         }
     }
     
 }
 
 void 
-LastTouchPred::strengthenAccuracy(Addr block_tag){
+LastTouchPred::weakenAccuracy(Addr block_tag){
     //search through last touch array and find last LT signature for this block
+    //inform("size = %d\n",last_touched_signature.size());
+    //inform("weaken\n");
+    //inform("weak id = %d\n",LTP_id);
     for(int i = 0; i < last_touched_signature.size(); i++){
         if(last_touched_signature[i].size() > 0 && last_touched_signature[i][0][0] == block_tag ){
-            incrementAccuracy(block_tag,last_touched_signature[i][0][1]);
+           // inform("id = %d, weak size = %d\n",LTP_id,last_touched_signature.size());
+            //inform("weaken\n"); 
+            decrementAccuracy(block_tag,last_touched_signature[i][0][1]);
+            //inform("before size = %d\n",last_touched_signature[i].size());
             last_touched_signature[i].erase(last_touched_signature[i].begin());
+            //inform("after size = %d\n",last_touched_signature[i].size());
+
         }
     }
     
 }
+
+
 void
 LastTouchPred::add_new_sig_table(Addr block_tag,Packet* pkt){
 
@@ -354,6 +373,9 @@ void
 LastTouchPred::updateLastTouchedSignatureTable(Addr block_tag, int value){
     //iterate through the table and look for a match for the block
     int foundBlock = 0;
+    //inform("added entry\n");
+    //inform("size = %d\n",last_touched_signature.size());
+    //inform("id = %d, add size = %d\n",LTP_id,last_touched_signature.size());
     std::vector new_vect = {block_tag, value};
     for (int i = 0; i < last_touched_signature.size(); i++){
         if(last_touched_signature[i].size() == 0  || last_touched_signature[i][0][0] == block_tag ){

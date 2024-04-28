@@ -75,14 +75,14 @@ namespace ruby
 class LastTouchPred: public SimObject
 {
     public:
-        MachineID LTP_id;// = 0;
-        void set_LTP_id(MachineID id);
-        MachineID get_LTP_id();
+        int LTP_id;// = 0;
+        void set_LTP_id(int id);
+        int get_LTP_id();
         //execution stats
-        int num_wrong_invalidations = 0;
-        int num_right_invalidations = 0;
-        int num_invalidations_predicted = 0; 
-        int num_invalidations = 0;
+        volatile int num_wrong_invalidations = 0;
+        volatile int num_right_invalidations = 0;
+        volatile int num_invalidations_predicted = 0; 
+        volatile int num_invalidations = 0;
 
         typedef LastTouchPredParams Params;
         LastTouchPred(const Params &p);
@@ -90,13 +90,13 @@ class LastTouchPred: public SimObject
         std::vector<std::vector<std::vector<int>>> LTP_sig_table;//(100,-1);
         std::vector<std::vector<std::vector<int>>> last_touched_signature;
         std::deque<int> blocks_to_be_self_inv;
-        std::vector<std::pair<int, MachineID>> forward_request_table;
+        std::vector<std::pair<int, int>> forward_request_table;
 
         void increment_invalidations();
         int get_LT_match();
-        void add_forward_queue(Addr address, MachineID machine_node);
-        void remove_forward_queue(Addr address, MachineID machine_node);
-        int search_forward(Addr address, MachineID machine_node);
+        void add_forward_queue(Addr address, int machine_node);
+        void remove_forward_queue(Addr address, int machine_node);
+        int search_forward(Addr address, int machine_node);
 
         void update_table_size(int num_blocks);
         int get_sig_table_size();

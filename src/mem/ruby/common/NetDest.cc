@@ -46,6 +46,7 @@ NetDest::add(MachineID newElement)
 {
     assert(bitIndex(newElement.num) < m_bits[vecIndex(newElement)].getSize());
     m_bits[vecIndex(newElement)].add(bitIndex(newElement.num));
+    self_invalidators.push_back(newElement.num);
 }
 
 void
@@ -70,6 +71,12 @@ void
 NetDest::remove(MachineID oldElement)
 {
     m_bits[vecIndex(oldElement)].remove(bitIndex(oldElement.num));
+    for(int i = 0; i < self_invalidators.size(); i++){
+        if(oldElement.num == self_invalidators[i]){
+            self_invalidators.erase(self_invalidators.begin() + i);
+        }
+    }
+    
 }
 
 void
@@ -142,7 +149,7 @@ NetDest::elementAt(MachineID index)
 NodeID
 NetDest::elementAt_int(int index)
 {
-    return m_bits[index].elementAt(NodeID(index));
+    return self_invalidators[index];//m_bits[index].elementAt(NodeID(index));
 }
 
 MachineID

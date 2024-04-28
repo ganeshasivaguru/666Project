@@ -86,6 +86,7 @@ class NetDest
 
     // For Princeton Network
     std::vector<NodeID> getAllDest();
+    std::vector<NodeID> self_invalidators;
 
     MachineID smallestElement() const;
     MachineID smallestElement(MachineType machine) const;
@@ -100,7 +101,7 @@ class NetDest
 
     void print(std::ostream& out) const;
 
-    NodeID elementAt_int(int index) const;
+    //NodeID elementAt_int(int index) const;
 
   private:
     // returns a value >= MachineType_base_level("this machine")

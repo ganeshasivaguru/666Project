@@ -60,7 +60,7 @@ structure(MessageBuffer, buffer="yes", inport="yes", outport="yes",
 }
 structure (LastTouchPred, external = "yes") {
         //MachineID LTP_id;
-        MachineID get_LTP_id();
+        int get_LTP_id();
         void update_table_size(int num_blocks);
         int get_sig_table_size();
         int get_LTP_sig_table_size();
@@ -71,7 +71,7 @@ structure (LastTouchPred, external = "yes") {
         bool blocks_to_be_self_inv_empty();
 
         void increment_invalidations();
-        void set_LTP_id(MachineID id);
+        void set_LTP_id(int id);
 
         //sig table add and get
         void add_new_sig_table(Addr block_tag, PacketPtr pkt);
@@ -86,9 +86,9 @@ structure (LastTouchPred, external = "yes") {
         void strengthenAccuracy(Addr block_tag);
         void weakenAccuracy(Addr block_tag);
 
-        void add_forward_queue(Addr address, MachineID machine_node);
-        void remove_forward_queue(Addr address, MachineID machine_node);
-        int search_forward(Addr address, MachineID machine_node);
+        void add_forward_queue(Addr address, int machine_node);
+        void remove_forward_queue(Addr address, int machine_node);
+        int search_forward(Addr address, int machine_node);
 }
 
 external_type(Scalar, primitive="yes");
