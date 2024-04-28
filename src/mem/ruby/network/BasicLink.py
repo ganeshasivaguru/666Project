@@ -33,7 +33,7 @@ class BasicLink(SimObject):
     cxx_class = 'gem5::ruby::BasicLink'
 
     link_id = Param.Int("ID in relation to other links")
-    latency = Param.Cycles(1, "latency")
+    latency = Param.Cycles(80, "latency")
     # Width of the link in bytes
     # Only used by simple network.
     # Garnet models this by flit size

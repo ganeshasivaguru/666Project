@@ -40,9 +40,9 @@
 
 machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
  : CacheMemory * L2cache;
-   Cycles l2_request_latency := 80;//2;//80;//2; 80
-   Cycles l2_response_latency := 80; //336;//2;//80;//2; 416 -80 = 336
-   Cycles to_l1_latency := 80; //1;//80; 80
+   Cycles l2_request_latency := 2;//80;//2; 80
+   Cycles l2_response_latency := 2;//80;//2; 416 -80 = 336
+   Cycles to_l1_latency := 1;//80; 80
 
   // Message Queues
   // From local bank of L2 cache TO the network
