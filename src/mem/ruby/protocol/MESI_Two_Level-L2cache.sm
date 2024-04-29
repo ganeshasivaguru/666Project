@@ -678,7 +678,13 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     else if(id == 31){
       L1_LTP31.weakenAccuracy(address);}
   }
-
+  action(check_if_INV_to_req_already_sent,"check_inv", desc="for the case where inv to self req already was sent"){
+    peek(self_inv_in,  RequestMsg) {
+      //self req should be sharer and inv already sent, decrease strength
+      decreaseStrengthNode(in_msg.Requestor, address);
+      //getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor); // not added as self invalidator yet so no need to remove
+    }
+  }
   action(check_right_wrong, "check_pred", desc="right or wrong"){
     peek(L1RequestL2Network_in,  RequestMsg) {
       if(cache_entry.Self_Invalidators.isElement(in_msg.Requestor)){
@@ -2582,9 +2588,18 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     zz_stallAndWaitL1RequestQueue;
   }
 
-  transition({SS, SS_MB, MT_SB, MT_IB, MT_IIB, MT_MB, wait_for_WBdata_no_sharers}, {Self_Inv}){
+  transition({SS, MT_SB, MT_IB, MT_IIB, MT_MB, wait_for_WBdata_no_sharers}, {Self_Inv}){
+
+
     removeReqFromSharers_self_inv;
     addReqToInvalidators;
+    //sendSelfInvAck;
+    popSelfInv;
+  }
+  transition({SS_MB}, Self_Inv){
+    check_if_INV_to_req_already_sent;
+    removeReqFromSharers_self_inv;
+    //addReqToInvalidators;
     //sendSelfInvAck;
     popSelfInv;
   }
@@ -2595,9 +2610,16 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
       popSelfInv;
   }
 
-  transition({MT_MB, MT_SB, MT_IIB, SS_MB}, Self_Inv_Only_Sharer){
+  transition({MT_MB, MT_SB, MT_IIB}, Self_Inv_Only_Sharer){
     removeReqFromSharers_self_inv;
     addReqToInvalidators;
+    sendSelfInvAck;
+    popSelfInv;
+  }
+  transition(SS_MB, Self_Inv_Only_Sharer){
+    check_if_INV_to_req_already_sent;
+    removeReqFromSharers_self_inv;
+    //addReqToInvalidators;
     sendSelfInvAck;
     popSelfInv;
   }
