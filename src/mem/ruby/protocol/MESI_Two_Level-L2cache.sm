@@ -458,7 +458,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   }
 
   // L1 Request
-  in_port(L1RequestL2Network_in, RequestMsg, L1RequestToL2Cache, rank = 0) {
+  in_port(L1RequestL2Network_in, RequestMsg, L1RequestToL2Cache, rank = 1) {
     if(L1RequestL2Network_in.isReady(clockEdge())) {
       peek(L1RequestL2Network_in,  RequestMsg) {
         Entry cache_entry := getCacheEntry(in_msg.addr);
@@ -500,7 +500,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     }
   }
 
-  in_port(self_inv_in, RequestMsg, requestFromCache_self_inv, rank = 1) {
+  in_port(self_inv_in, RequestMsg, requestFromCache_self_inv, rank = 0) {
       if (self_inv_in.isReady(clockEdge())) {
           peek(self_inv_in, RequestMsg) {
               //error("yay");
@@ -684,7 +684,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
       if(cache_entry.Self_Invalidators.isElement(in_msg.Requestor)){
         //wrong because self invalidator is getting block before it was invalidated 
         decreaseStrengthNode(in_msg.Requestor, address);
-        getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+        getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor);
       }
       else if(cache_entry.Self_Invalidators.count() > 0){
         //assert(1==0);
@@ -1283,7 +1283,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         else{
           error("number of self invalidators exceed 32");
         }
-        getCacheEntry(address).Self_Invalidators.clear();
+        getCacheEntry(address).Self_Invalidators.clear_self();
       }
     }
   }
@@ -1298,7 +1298,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
         out_msg.Destination := getCacheEntry(address).Self_Invalidators;
         out_msg.MessageSize := MessageSizeType:Control;
       }
-      getCacheEntry(address).Self_Invalidators.clear();
+      getCacheEntry(address).Self_Invalidators.clear_self();
     }*/
     if(cache_entry.Self_Invalidators.count() > 0){
       if(getCacheEntry(address).Self_Invalidators.count() == 1){
@@ -1896,13 +1896,13 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
       else{
         error("number of self invalidators exceed 32");
       }
-      getCacheEntry(address).Self_Invalidators.clear();
+      getCacheEntry(address).Self_Invalidators.clear_self();
     }
     
   }
 
   action(clearSelfInvalidators, "clear_list", desc="clear self inv"){
-    getCacheEntry(address).Self_Invalidators.clear();
+    getCacheEntry(address).Self_Invalidators.clear_self();
   }
 
 
@@ -1943,7 +1943,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
             }
             decreaseStrengthNode(in_msg.Requestor, address);
             
-            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+            getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor);
         } */
       enqueue(DirRequestL2Network_out, RequestMsg, l2_request_latency) {
         out_msg.addr := address;
@@ -1958,8 +1958,8 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   action(addReqToInvalidators, "add_inv", desc="add requestor to invalidators") {
       peek(self_inv_in, RequestMsg) {
-          if(is_valid(getCacheEntry(address))){
-            getCacheEntry(address).Self_Invalidators.add(in_msg.Requestor);}
+          assert(is_valid(getCacheEntry(address)));
+          getCacheEntry(address).Self_Invalidators.add_self(in_msg.Requestor);
       }
   }
 
@@ -1974,10 +1974,14 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
   }
 //TODO figure out why entry is invalid
   action(removeReqFromSharers_self_inv, "rS_self", desc="Remove requestor from sharers") {
-      peek(self_inv_in, RequestMsg) {
-          if(is_valid(getCacheEntry(address))){
-            getCacheEntry(address).Sharers.remove(in_msg.Requestor);}
-      }
+    peek(self_inv_in, RequestMsg) {
+      APPEND_TRANSITION_COMMENT(in_msg.Requestor);
+      //assert(0==1);
+      assert(is_valid(cache_entry));
+      cache_entry.Sharers.remove(in_msg.Requestor);
+      assert(!cache_entry.Sharers.isElement(in_msg.Requestor));
+      APPEND_TRANSITION_COMMENT( cache_entry.Sharers );
+    }
   }
 
   action(b_forwardRequestToExclusive, "b", desc="Forward request to the exclusive L1") {
@@ -1998,7 +2002,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
       if(check_self_invalidator_requestor(getCacheEntry(address), in_msg.Requestor)){
         //wrong prediction
         decreaseStrengthNode(in_msg.Requestor, address);
-        getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+        getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor);
       }
       LTP.add_forward_queue(in_msg.addr,machineIDToNodeID_int(cache_entry.Exclusive));
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
@@ -2025,7 +2029,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
                 out_msg.MessageSize := MessageSizeType:Control;
             }*/
             decreaseStrengthNode(in_msg.Requestor, address);
-            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+            getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor);
         }
         enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
           assert(is_valid(cache_entry));
@@ -2108,7 +2112,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
               out_msg.MessageSize := MessageSizeType:Control;
           }*/
           //decreaseStrengthNode(in_msg.Requestor, address);
-          //getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+          //getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor);
       }
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
@@ -2154,7 +2158,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
             out_msg.MessageSize := MessageSizeType:Control;
         }*/
         //decreaseStrengthNode(in_msg.Requestor, address);
-        //getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+        //getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor);
       }
     }
   }
@@ -2185,7 +2189,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
                 out_msg.MessageSize := MessageSizeType:Control;
             }*/
             decreaseStrengthNode(in_msg.Requestor, address);
-            getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+            getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor);
         } 
       enqueue(responseL2Network_out, ResponseMsg, l2_response_latency) {
         assert(is_valid(cache_entry));
@@ -2274,7 +2278,9 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   action(fwm_sendFwdInvToSharersMinusRequestor, "fwm", desc="invalidate sharers for request, requestor is sharer") {
     peek(L1RequestL2Network_in, RequestMsg) {
+      APPEND_TRANSITION_COMMENT(cache_entry.Sharers);
       enqueue(L1RequestL2Network_out, RequestMsg, to_l1_latency) {
+        
         assert(is_valid(cache_entry));
         assert(cache_entry.Sharers.count() > 0);
         out_msg.addr := address;
@@ -2387,7 +2393,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
               out_msg.MessageSize := MessageSizeType:Control;
           }*/
          // decreaseStrengthNode(in_msg.Requestor, address);
-          //getCacheEntry(address).Self_Invalidators.remove(in_msg.Requestor);
+          //getCacheEntry(address).Self_Invalidators.remove_self(in_msg.Requestor);
         }
 
       tbe.L1_GetS_IDs.add(in_msg.Requestor);
@@ -2454,9 +2460,11 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
 
   action(nnu_addSharerFromUnblock, "\nu", desc="Add L1 sharer to list") {
+    //if()
     peek(L1unblockNetwork_in, ResponseMsg) {
-      assert(is_valid(cache_entry));
-      addSharer(address, in_msg.Sender, cache_entry);
+      if(!cache_entry.Self_Invalidators.isElement(in_msg.Sender)){
+        assert(is_valid(cache_entry));
+        addSharer(address, in_msg.Sender, cache_entry);}
     }
   }
 
@@ -2492,10 +2500,13 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   action(mmu_markExclusiveFromUnblock, "\mu", desc="set the exclusive Exclusive") {
     peek(L1unblockNetwork_in, ResponseMsg) {
-      assert(is_valid(cache_entry));
-      cache_entry.Sharers.clear();
-      cache_entry.Exclusive := in_msg.Sender;
-      addSharer(address, in_msg.Sender, cache_entry);
+      //if(!cache_entry.Self_Invalidators.isElement(in_msg.Sender)){
+        assert(is_valid(cache_entry));
+        cache_entry.Sharers.clear();
+        cache_entry.Exclusive := in_msg.Sender;
+        addSharer(address, in_msg.Sender, cache_entry);
+       // }
+      
     }
   }
 
@@ -2619,6 +2630,7 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     //ll_clearSharers;
     ll_clearSharers_self;
     addReqToInvalidators;
+    removeReqFromSharers_self_inv
     mr_writeDataToCacheFromRequest_self;
     sendSelfInvAck;
     popSelfInv;

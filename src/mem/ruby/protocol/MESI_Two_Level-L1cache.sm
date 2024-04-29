@@ -999,6 +999,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   
 
   transition({NP, I}, Inv) {
+
     fi_sendInvAck;
     l_popRequestQueue;
   }

@@ -420,7 +420,7 @@ RubyPort::MemResponsePort::recvFunctional(PacketPtr pkt)
 
         // Do the functional access on ruby memory
         if (pkt->isRead()) {
-            accessSucceeded = rs->functionalRead(pkt);
+            accessSucceeded =rs->functionalRead(pkt);
         } else if (pkt->isWrite()) {
             accessSucceeded = rs->functionalWrite(pkt);
         } else {

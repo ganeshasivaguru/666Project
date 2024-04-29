@@ -56,11 +56,14 @@ class NetDest
     { }
 
     void add(MachineID newElement);
+    void add_self(MachineID newElement);
     void addNetDest(const NetDest& netDest);
     void setNetDest(MachineType machine, const Set& set);
     void remove(MachineID oldElement);
+    void remove_self(MachineID oldElement);
     void removeNetDest(const NetDest& netDest);
     void clear();
+    void clear_self();
     void broadcast();
     void broadcast(MachineType machine);
     int count() const;
@@ -111,8 +114,6 @@ class NetDest
     {
         
         int vec_index = MachineType_base_level(m.type);
-        if(vec_index >= m_bits.size())
-          inform("index = %d, size = %d\n",vec_index,m_bits.size() );
         assert(vec_index < m_bits.size());
         return vec_index;
     }
