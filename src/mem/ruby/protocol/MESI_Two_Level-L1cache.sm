@@ -277,6 +277,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       LTP.add_new_sig_table(in_msg.LineAddress, in_msg.pkt);
       return Event:Load;
     } else if (in_msg.Type == RubyRequestType:IFETCH) {
+      LTP.add_new_sig_table(in_msg.LineAddress, in_msg.pkt);
       return Event:Ifetch;
     } else if ((in_msg.Type == RubyRequestType:ST) || (in_msg.Type == RubyRequestType:ATOMIC)) {
       LTP.add_new_sig_table(in_msg.LineAddress, in_msg.pkt);

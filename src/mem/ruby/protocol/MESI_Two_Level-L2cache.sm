@@ -2673,7 +2673,8 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
     ll_clearSharers;
     nn_addSharer;
     i_allocateTBE;
-    ss_recordGetSL1ID;
+    //ss_recordGetSL1ID;
+    ss_recordGetSL1ID_non_instr;
     a_issueFetchToMemory;
     //uu_profileMiss;
     jj_popL1RequestQueue;
@@ -2723,7 +2724,8 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
 
   transition({IS, ISS}, {L1_GET_INSTR}, IS) {
     nn_addSharer;
-    ss_recordGetSL1ID;
+    //ss_recordGetSL1ID;
+    ss_recordGetSL1ID_non_instr;
     jj_popL1RequestQueue;
   }
   transition({IS, ISS}, L1_GETX) {
@@ -2745,7 +2747,8 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
   
   transition(SS, { L1_GET_INSTR}) {
-    ds_sendSharedDataToRequestor;
+   //ds_sendSharedDataToRequestor;
+   ds_sendSharedDataToRequestor_non_instr;
     nn_addSharer;
     set_setMRU;
     //uu_profileHit;
@@ -2799,7 +2802,8 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
 
   transition(M, L1_GET_INSTR, SS) {
-    d_sendDataToRequestor;
+    //d_sendDataToRequestor;
+    d_sendDataToRequestor_not_instr
     nn_addSharer;
     set_setMRU;
     //uu_profileHit;
@@ -2863,7 +2867,8 @@ action(d_sendDataToRequestor_not_instr, "d_not_instr", desc="Send data from cach
   }
   
   transition(MT, {L1_GET_INSTR}, MT_IIB) {
-    b_forwardRequestToExclusive;
+    //b_forwardRequestToExclusive;
+    b_forwardRequestToExclusive_not_instr
     //uu_profileMiss;
     set_setMRU;
     jj_popL1RequestQueue;
