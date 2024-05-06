@@ -48,6 +48,7 @@
 #include "mem/ruby/system/RubySystem.hh"
 #include "params/SelfInvFiFo.hh"
 #include "sim/sim_object.hh"
+#include "debug/Ruby.hh"
 
 namespace gem5
 {
@@ -61,6 +62,8 @@ struct FIFOEntry
   int VerNo;
   bool isSelfInv;
 };
+
+#define FIFO_DEPTH 64
 
 class SelfInvFiFo : public SimObject
 {
@@ -80,7 +83,8 @@ class SelfInvFiFo : public SimObject
     int getcurrentHead();
 
     Addr getAddrofCurrentHead();
-
+    
+    //Addr lastEntry(); 
     // pop a cache entry
     Addr popEntry();
 
@@ -88,7 +92,7 @@ class SelfInvFiFo : public SimObject
     void printContents();
 
   private:
-    Addr selfInvQueue[64];
+    Addr selfInvQueue[FIFO_DEPTH];
     int currentHead;
     int currentTail;
     int currentSize;

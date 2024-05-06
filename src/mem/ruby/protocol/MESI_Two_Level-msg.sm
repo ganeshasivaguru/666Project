@@ -41,6 +41,11 @@ enumeration(CoherenceRequestType, desc="...") {
 
   DMA_READ, desc="DMA Read";
   DMA_WRITE, desc="DMA Write";
+
+  SELF_INV_X, desc="Self Invalidating Modified block";
+  SELF_INV_S, desc="Self Invalidating Shared block";
+ /*  SELF_INV_ACK, desc="Ack from SelfINV"; */
+  
 }
 
 // CoherenceResponseType
@@ -54,6 +59,11 @@ enumeration(CoherenceResponseType, desc="...") {
   UNBLOCK, desc="unblock";
   EXCLUSIVE_UNBLOCK, desc="exclusive unblock";
   INV, desc="Invalidate from directory";
+
+  SELF_INV_ACK, desc="Ack from SelfINV";
+  SELF_INV_RESP, desc="Internal use Self Inv block";
+ 
+
 }
 
 // RequestMsg
@@ -69,9 +79,13 @@ structure(RequestMsg, desc="...", interface="Message") {
   bool Dirty, default="false",  desc="Dirty bit";
   PrefetchBit Prefetch,         desc="Is this a prefetch request";
 
+  int VerNo,                    desc="Version number of the block";
+  bool isSelfInv,               desc="Is the block selfInv?";
+
   bool functionalRead(Packet *pkt) {
-    // Only PUTX messages contains the data block
-    if (Type == CoherenceRequestType:PUTX) {
+    // Only PUTX messages contains the data block // GVS: with self invalidatio
+   // those msg will also contain data
+    if (Type == CoherenceRequestType:PUTX || Type == CoherenceRequestType:SELF_INV_X) {
         return testAndRead(addr, DataBlk, pkt);
     }
 
@@ -95,6 +109,9 @@ structure(ResponseMsg, desc="...", interface="Message") {
   bool Dirty, default="false",  desc="Dirty bit";
   int AckCount, default="0",  desc="number of acks in this message";
   MessageSizeType MessageSize,  desc="size category of the message";
+
+  int VerNo,                    desc="Version Number of the block";
+  bool isSelfInv,               desc="Is the block selfInv?";
 
   bool functionalRead(Packet *pkt) {
     // Valid data block is only present in message with following types

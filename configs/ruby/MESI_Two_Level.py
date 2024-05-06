@@ -77,6 +77,7 @@ def create_system(options, full_system, system, dma_ports, bootmem,
                             assoc = options.l1d_assoc,
                             start_index_bit = block_size_bits,
                             is_icache = False)
+        
 
         prefetcher = RubyPrefetcher()
 
@@ -91,6 +92,9 @@ def create_system(options, full_system, system, dma_ports, bootmem,
                                       clk_domain = clk_domain,
                                       transitions_per_cycle = options.ports,
                                       enable_prefetch = False)
+        
+        selfInvFiFo = SelfInvFiFo()
+        l1_cntrl.selfinvfifo = selfInvFiFo;
 
         cpu_seq = RubySequencer(version = i,
                                 dcache = l1d_cache, clk_domain = clk_domain,
@@ -119,6 +123,17 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         l1_cntrl.requestToL1Cache.in_port = ruby_system.network.out_port
         l1_cntrl.responseToL1Cache = MessageBuffer()
         l1_cntrl.responseToL1Cache.in_port = ruby_system.network.out_port
+        l1_cntrl.selfInvQueueIn = MessageBuffer()
+        l1_cntrl.selfInvQueueOut = MessageBuffer()
+
+        l1_cntrl.selfInvQueue = MessageBuffer()
+        #l1_cntrl.selfInvQueueIn.in_port = l1_cntrl.selfInvQueueOut.out_port
+        #l1_cntrl.selfInvQueueIn = l1_cntrl.selfInvQueueOut
+        l1_cntrl.selfInvQueueIn.in_port = ruby_system.network.out_port
+        l1_cntrl.selfInvQueueOut.out_port = ruby_system.network.in_port
+        l1_cntrl.selfInvAckFromL2 = MessageBuffer()
+        l1_cntrl.selfInvAckFromL2.in_port = ruby_system.network.out_port
+
 
 
     l2_index_start = block_size_bits + l2_bits
@@ -153,6 +168,9 @@ def create_system(options, full_system, system, dma_ports, bootmem,
         l2_cntrl.L1RequestToL2Cache.in_port = ruby_system.network.out_port
         l2_cntrl.responseToL2Cache = MessageBuffer()
         l2_cntrl.responseToL2Cache.in_port = ruby_system.network.out_port
+
+        l2_cntrl.selfInvAckToL1Cache = MessageBuffer()
+        l2_cntrl.selfInvAckToL1Cache.out_port = ruby_system.network.in_port
 
 
     # Run each of the ruby memory controllers at a ratio of the frequency of
@@ -222,6 +240,6 @@ def create_system(options, full_system, system, dma_ports, bootmem,
 
         all_cntrls = all_cntrls + [io_controller]
 
-    ruby_system.network.number_of_virtual_networks = 3
+    ruby_system.network.number_of_virtual_networks = 4
     topology = create_topology(all_cntrls, options)
     return (cpu_sequencers, mem_dir_cntrl_nodes, topology)

@@ -430,8 +430,8 @@ RubyPort::MemResponsePort::recvFunctional(PacketPtr pkt)
         // Unless the request port explicitly said otherwise, generate an error
         // if the functional request failed
         if (!accessSucceeded && !pkt->suppressFuncError()) {
-            fatal("Ruby functional %s failed for address %#x\n",
-                  pkt->isWrite() ? "write" : "read", pkt->getAddr());
+            fatal("Ruby functional %s failed for address %#x\n at tick:%d",
+                  pkt->isWrite() ? "write" : "read", pkt->getAddr(),curTick());
         }
 
         // turn packet around to go back to request port if response expected

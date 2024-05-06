@@ -40,6 +40,8 @@
 
 Import('*')
 
+#DebugFlag('DSI')
+
 if env['CONF']['PROTOCOL'] == 'None':
     Return()
 
@@ -71,3 +73,5 @@ Source('Sequencer.cc')
 if env['CONF']['BUILD_GPU']:
     Source('VIPERCoalescer.cc')
 Source('SelfInvFiFo.cc')
+
+

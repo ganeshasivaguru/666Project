@@ -40,6 +40,7 @@
  */
 
 #include "mem/ruby/system/SelfInvFiFo.hh"
+#include "debug/DSI.hh"
 
 namespace gem5
 {
@@ -52,7 +53,7 @@ SelfInvFiFo::SelfInvFiFo(const Params &p)
   : SimObject(p)
 {
   // Just call init in the constructor
-  for (int i=0; i < 64; i++) {
+  for (int i=0; i < FIFO_DEPTH; i++) {
           selfInvQueue[i] = 0;
   }
   currentHead = 0;
@@ -69,7 +70,7 @@ SelfInvFiFo::~SelfInvFiFo() {
 bool
 SelfInvFiFo::isFull() {
 
-  if (currentSize == 64) {
+  if (currentSize == FIFO_DEPTH) {
     return true;
   } else {
     return false;
@@ -77,13 +78,22 @@ SelfInvFiFo::isFull() {
 
 }
 
+//Addr 
+//SelfInvFiFo::lastEntry() {
+//  if(currentTail == 0) {
+//    return selfInvQueue[FIFO_DEPTH-1];
+//  } else { 
+//    return selfInvQueue[currentTail-1];
+//  }
+//}
+
 void
 SelfInvFiFo::pushEntry(Addr in_addr /*, int in_VerNo, bool in_isSelfInv*/) {
   DPRINTF(RubySlicc, "Currenttail is %d\n", currentTail);
   selfInvQueue[currentTail]  = in_addr;
   //selfInvQueue[currentTail].VerNo     = in_VerNo;
   //selfInvQueue[currentTail].isSelfInv = in_isSelfInv;
-  currentTail = (currentTail+1)%64; // 64 entries so mod with 64
+  currentTail = (currentTail+1)%FIFO_DEPTH; // 64 entries so mod with 64
   currentSize++;
   DPRINTF(RubySlicc, "Pushed the entry\n");
   DPRINTF(RubySlicc, "Current size of FIFO is : %d\n", currentSize);
@@ -94,7 +104,7 @@ Addr
 SelfInvFiFo::popEntry() {
 
   int prevHead = currentHead;
-  currentHead = (currentHead + 1)%64;
+  currentHead = (currentHead + 1)%FIFO_DEPTH;
   currentSize--;
   return selfInvQueue[prevHead];
 }
@@ -108,8 +118,8 @@ Addr SelfInvFiFo::getAddrofCurrentHead(){
 }
 
 void SelfInvFiFo::printContents() {
-  for (int i=0; i<64; i++) {
-    DPRINTF(RubySlicc, "Entry at i:%d, -> %x\n", i, selfInvQueue[i]);
+  for (int i=0; i<FIFO_DEPTH; i++) {
+    DPRINTF(DSI, "fifo[%d]:, -> %x\n", i, selfInvQueue[i]);
   }
 }
 

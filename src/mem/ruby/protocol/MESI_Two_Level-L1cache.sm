@@ -50,6 +50,8 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
    bool send_evictions;
    bool enable_prefetch := "False";
 
+   SelfInvFiFo * selfinvfifo;
+
    // Message Queues
    // From this node's L1 cache TO the network
 
@@ -74,6 +76,18 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
    MessageBuffer * responseToL1Cache, network="From", virtual_network="1",
         vnet_type="response";
 
+  // All selfinv blocks are placed in this buffer
+  //MessageBuffer * selfInvQueueIn, network="From", virtual_network="3",
+  //      vnet_type="response";
+
+  //MessageBuffer * selfInvQueueOut,network="To", virtual_network="3",
+  //     vnet_type="response";
+
+  //MessageBuffer * selfInvToL2Cache, network="To", virtual_network=""
+
+  // Self inv queue 
+  MessageBuffer * selfInvQueue;
+
   // Request Buffer for prefetches
   MessageBuffer * optionalQueue;
 
@@ -94,6 +108,8 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     IM, AccessPermission:Busy, desc="L1 idle, issued GETX, have not seen response yet";
     SM, AccessPermission:Read_Only, desc="L1 idle, issued GETX, have not seen response yet";
     IS_I, AccessPermission:Busy, desc="L1 idle, issued GETS, saw Inv before data because directory doesn't block on GETS hit";
+
+    SI, AccessPermission:Read_Only, desc="L1 was in S, issued SELF_INV_S, waiting for Ack from directory";
 
     M_I, AccessPermission:Busy, desc="L1 replacing, waiting for ACK";
     SINK_WB_ACK, AccessPermission:Busy, desc="This is to sink WB_Acks from L2";
@@ -136,6 +152,9 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     PF_Load,    desc="load request from prefetcher";
     PF_Ifetch,  desc="instruction fetch request from prefetcher";
     PF_Store,   desc="exclusive load request from prefetcher";
+
+    SelfInvAck, desc="Self Invalidation ack from L2 to L1";
+    SelfInv,    desc="Self Invalidation block";
   }
 
   // TYPES
@@ -146,6 +165,9 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     DataBlock DataBlk,       desc="data for the block";
     bool Dirty, default="false",   desc="data is dirty";
     bool isPrefetch, desc="Set if this block was prefetched and not yet accessed";
+    
+    bool isSelfInv,default=0, desc="Is the block selected for SelfInv";
+    int VerNo,default=0,      desc="VerNo of the block";
   }
 
   // TBE fields
@@ -178,6 +200,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   void wakeUpBuffers(Addr a);
   void profileMsgDelay(int virtualNetworkType, Cycles c);
 
+  
   // inclusive cache returns L1 entries only
   Entry getCacheEntry(Addr addr), return_by_pointer="yes" {
     Entry L1Dcache_entry := static_cast(Entry, "pointer", L1Dcache[addr]);
@@ -226,13 +249,13 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   AccessPermission getAccessPermission(Addr addr) {
     TBE tbe := TBEs[addr];
     if(is_valid(tbe)) {
-      DPRINTF(RubySlicc, "%s\n", L1Cache_State_to_permission(tbe.TBEState));
+      DPRINTF(RubySlicc, "From TBE %s for block %x\n", L1Cache_State_to_permission(tbe.TBEState),addr);
       return L1Cache_State_to_permission(tbe.TBEState);
     }
 
     Entry cache_entry := getCacheEntry(addr);
     if(is_valid(cache_entry)) {
-      DPRINTF(RubySlicc, "%s\n", L1Cache_State_to_permission(cache_entry.CacheState));
+      DPRINTF(RubySlicc, "%s for block: %x\n", L1Cache_State_to_permission(cache_entry.CacheState),addr);
       return L1Cache_State_to_permission(cache_entry.CacheState);
     }
 
@@ -304,13 +327,17 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   out_port(unblockNetwork_out, ResponseMsg, unblockFromL1Cache);
   out_port(optionalQueue_out, RubyRequest, optionalQueue);
 
+  out_port(self_inv_out, ResponseMsg, selfInvQueue);
+
+
+
 
   // Prefetch queue between the controller and the prefetcher
   // As per Spracklen et al. (HPCA 2005), the prefetch queue should be
   // implemented as a LIFO structure.  The structure would allow for fast
   // searches of all entries in the queue, not just the head msg. All
   // msgs in the structure can be invalidated if a demand miss matches.
-  in_port(optionalQueue_in, RubyRequest, optionalQueue, desc="...", rank = 3) {
+  in_port(optionalQueue_in, RubyRequest, optionalQueue, desc="...", rank = 4) {
       if (optionalQueue_in.isReady(clockEdge())) {
           peek(optionalQueue_in, RubyRequest) {
               // Instruction Prefetch
@@ -384,14 +411,69 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       }
   }
 
+        // Self Invalidation In Queue 
+/*   in_port(self_inv_in, ResponseMsg, selfInvQueue,rank=3) {
+    DPRINTF(RubySlicc, "Entering the self inv in port\n");
+    if(self_inv_in.isReady(clockEdge())) {
+      DPRINTF(RubySlicc, "There is something in the selfinv queue\n");
+      peek(self_inv_in, ResponseMsg) {
+        DPRINTF(RubySlicc, "[SelfInv-In-Port]Entering the Self Inv Input Buffer\n");
+        if(in_msg.Type == CoherenceResponseType:SELF_INV_RESP) {
+          assert(in_msg.isSelfInv);
+          Entry cache_entry := getCacheEntry(in_msg.addr);
+          TBE s_tbe := TBEs[in_msg.addr];
+          DPRINTF(RubySlicc,"[SelfInv-In-Port]Initiating self invalidation on block:%x\n",
+          in_msg.addr);
+          trigger(Event:SelfInv, in_msg.addr, cache_entry, s_tbe);
+        } else {
+          error("[SelfInv-In-Port]Unexpected message type in the self invalidation queue\n");
+        }
+      }
+    }
+  } */
+
   // Response  L1 Network - response msg to this L1 cache
   in_port(responseL1Network_in, ResponseMsg, responseToL1Cache, rank = 2) {
+    DPRINTF(RubySlicc, "Entering Response In-port\n");
     if (responseL1Network_in.isReady(clockEdge())) {
+      DPRINTF(RubySlicc, "Response Port has valid msg for block\n");
       peek(responseL1Network_in, ResponseMsg, block_on="addr") {
         assert(in_msg.Destination.isElement(machineID));
 
+
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
+        DPRINTF(RubySlicc, "Response Msg type is %s\n", in_msg.Type);
+        DPRINTF(RubySlicc, "Response Msg address is %x\n", in_msg.addr);
+        DPRINTF(RubySlicc, "Is the cache entry or tbe valid? %d : %d\n",is_valid(getCacheEntry(in_msg.addr)), is_valid(tbe));
+
+        // ----------- NEW CODE -----------------------
+        // Check if the in_msg.isSelfInv = True, if yes and is full, 
+        // then pop the head of the SelfInvFiFo. If the cache state of that 
+        // block is M, E or S -> Trigger the selfinvalidation event
+        // if not then proceed to do the normal process
+        if(in_msg.isSelfInv && selfinvfifo.isFull() && (in_msg.Type==CoherenceResponseType:DATA_EXCLUSIVE || in_msg.Type==CoherenceResponseType:DATA)) {
+          //DPRINTF(DSI, "Printing contents of the FIFO before pop: \n");
+          //selfinvfifo.printContents();
+          // Just check if the incoming cache block is for the ICACHE
+          if(is_valid(getL1ICacheEntry(in_msg.addr))) {
+            DPRINTF(DSI, "The block (%#x) was in ICache\n", in_msg.addr);
+          }
+          DPRINTF(DSI, "Is the input block (%#x) in Icache? %d\n", in_msg.addr, is_valid(getL1ICacheEntry(in_msg.addr)));
+
+          Addr popped_address := selfinvfifo.popEntry();
+          Entry popped_entry := getCacheEntry(popped_address);
+          TBE popped_tbe := TBEs[popped_address];
+          if(is_valid(popped_entry) && (popped_entry.CacheState == State:M || 
+                                        popped_entry.CacheState == State:S || 
+                                        popped_entry.CacheState == State:E)) {
+            
+            // Trigger self invalidation only in this state
+            trigger(Event:SelfInv, popped_address, popped_entry, popped_tbe);
+          }
+        }
+
+        // ------------------------------------
 
         if(in_msg.Type == CoherenceResponseType:DATA_EXCLUSIVE) {
           trigger(Event:Data_Exclusive, in_msg.addr, cache_entry, tbe);
@@ -411,12 +493,16 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
           }
         } else if (in_msg.Type == CoherenceResponseType:ACK) {
           if ( (getPendingAcks(tbe) - in_msg.AckCount) == 0 ) {
+            DPRINTF(ProtocolTrace, "Final ack received from: %s\n",in_msg.Sender);
             trigger(Event:Ack_all, in_msg.addr, cache_entry, tbe);
           } else {
             trigger(Event:Ack, in_msg.addr, cache_entry, tbe);
           }
         } else if (in_msg.Type == CoherenceResponseType:WB_ACK) {
           trigger(Event:WB_Ack, in_msg.addr, cache_entry, tbe);
+        } else if (in_msg.Type == CoherenceResponseType:SELF_INV_ACK) {
+          DPRINTF(RubySlicc, "Receiving a SelfInvAck for block:%x (Valid:%s)\n",in_msg.addr, is_valid(getCacheEntry(in_msg.addr)));
+          trigger(Event:SelfInvAck, in_msg.addr, cache_entry, tbe);
         } else {
           error("Invalid L1 response type");
         }
@@ -424,15 +510,19 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     }
   }
 
+
+
   // Request InterChip network - request from this L1 cache to the shared L2
   in_port(requestL1Network_in, RequestMsg, requestToL1Cache, rank = 1) {
+    DPRINTF(RubySlicc, "Entering Request In-port\n");
     if(requestL1Network_in.isReady(clockEdge())) {
+      DPRINTF(RubySlicc, "Something in the request Queue\n");
       peek(requestL1Network_in, RequestMsg, block_on="addr") {
         assert(in_msg.Destination.isElement(machineID));
 
         Entry cache_entry := getCacheEntry(in_msg.addr);
         TBE tbe := TBEs[in_msg.addr];
-
+        DPRINTF(RubySlicc, "In_msg's type is %s\n" ,in_msg.Type);
         if (in_msg.Type == CoherenceRequestType:INV) {
           trigger(Event:Inv, in_msg.addr, cache_entry, tbe);
         } else if (in_msg.Type == CoherenceRequestType:GETX ||
@@ -440,6 +530,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
           // upgrade transforms to GETX due to race
           trigger(Event:Fwd_GETX, in_msg.addr, cache_entry, tbe);
         } else if (in_msg.Type == CoherenceRequestType:GETS) {
+          DPRINTF(RubySlicc, "Triggering a forward GETS for %#x\n",in_msg.addr);
           trigger(Event:Fwd_GETS, in_msg.addr, cache_entry, tbe);
         } else if (in_msg.Type == CoherenceRequestType:GET_INSTR) {
           trigger(Event:Fwd_GET_INSTR, in_msg.addr, cache_entry, tbe);
@@ -450,19 +541,27 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     }
   }
 
+
+
+
   // Mandatory Queue betweens Node's CPU and it's L1 caches
   in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, desc="...", rank = 0) {
+    DPRINTF(RubySlicc, "Entering mandatory In-port\n");
     if (mandatoryQueue_in.isReady(clockEdge())) {
+      DPRINTF(RubySlicc, "There is something in the mandatory port\n");
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
 
         // Check for data access to blocks in I-cache and ifetchs to blocks in D-cache
-
+        if (in_msg.Type!=RubyRequestType:LD && in_msg.Type!=RubyRequestType:ST && in_msg.Type!=RubyRequestType:IFETCH) {
+              DPRINTF(DSI,"New instr type:%s\n",in_msg.Type);
+        }
         if (in_msg.Type == RubyRequestType:IFETCH) {
           // ** INSTRUCTION ACCESS ***
 
           Entry L1Icache_entry := getL1ICacheEntry(in_msg.LineAddress);
           if (is_valid(L1Icache_entry)) {
             // The tag matches for the L1, so the L1 asks the L2 for it.
+
             trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
                     L1Icache_entry, TBEs[in_msg.LineAddress]);
           } else {
@@ -500,6 +599,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
             // The tag matches for the L1, so the L1 ask the L2 for it
             trigger(mandatory_request_type_to_event(in_msg.Type), in_msg.LineAddress,
                     L1Dcache_entry, TBEs[in_msg.LineAddress]);
+            DPRINTF(RubySlicc, "Exiting after the trigger for block%x\n", in_msg.LineAddress);
           } else {
 
             // Check to see if it is in the OTHER L1
@@ -528,6 +628,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
             }
           }
         }
+        DPRINTF(RubySlicc, "Exiting the mandatory queue after triggering a req for block%x\n",in_msg.LineAddress);
       }
     }
   }
@@ -541,6 +642,8 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   }
 
   // ACTIONS
+
+
   action(a_issueGETS, "a", desc="Issue GETS") {
     peek(mandatoryQueue_in, RubyRequest) {
       enqueue(requestL1Network_out, RequestMsg, l1_request_latency) {
@@ -554,6 +657,16 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
+
+        // Send the block's version number if cache_entry is valid, 
+        // else send a null entry;
+        if(is_valid(getCacheEntry(address))){
+          out_msg.VerNo := getCacheEntry(address).VerNo;
+          DPRINTF(RubySlicc, "[SendGetS]Was a valid block (%x) sending VerNo(%d)\n",address,out_msg.VerNo);
+        } else {
+          out_msg.VerNo := 0;
+          DPRINTF(RubySlicc, "[SendGetS]Was not a valid block, send VerNo=0\n");
+        }
       }
     }
   }
@@ -588,6 +701,16 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
+         
+        // Do we care if instructions/data is fetched ?? 
+        if(is_valid(getCacheEntry(address))){
+          out_msg.VerNo := getCacheEntry(address).VerNo;
+          DPRINTF(RubySlicc, "[GetInstr]Was a valid block (%x) sending VerNo(%d)\n",address,out_msg.VerNo);
+        } else {
+          out_msg.VerNo := 0;
+          DPRINTF(RubySlicc, "[GetInstr]Was not a valid block, send VerNo=0\n");
+        }
+
       }
     }
   }
@@ -626,6 +749,14 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
+
+        if(is_valid(getCacheEntry(address))) {
+          out_msg.VerNo := getCacheEntry(address).VerNo;
+          DPRINTF(RubySlicc,"[SendGetX]Version number of cache block in cache is %d\n",out_msg.VerNo);
+        } else {
+          out_msg.VerNo := 0;
+          DPRINTF(RubySlicc,"[SendGetX]Block not found, sending 0\n");
+        }
       }
     }
   }
@@ -663,6 +794,16 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
         out_msg.MessageSize := MessageSizeType:Control;
         out_msg.Prefetch := in_msg.Prefetch;
         out_msg.AccessMode := in_msg.AccessMode;
+
+        // I do send out the version numbers even for upgrade
+        // the version numbers will match at the directory
+        // if there are other sharers, then I will get a
+        // self inv block
+        if(is_valid(getCacheEntry(address))) {
+          out_msg.VerNo := getCacheEntry(address).VerNo;
+        } else {
+          out_msg.VerNo := 0; // I wont hit this case at all;
+        }
       }
     }
   }
@@ -678,6 +819,9 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
         out_msg.Sender := machineID;
         out_msg.Destination.add(in_msg.Requestor);
         out_msg.MessageSize := MessageSizeType:Response_Data;
+        // TODO tentatively sending this info
+        out_msg.isSelfInv := in_msg.isSelfInv;
+        out_msg.VerNo := in_msg.VerNo;
       }
     }
   }
@@ -778,6 +922,69 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     }
   }
 
+  // Self Invalidation BookKeeping action
+  action(updateSelfInv, "uInv", desc="Self Invalidation block book keeping") {
+    peek(responseL1Network_in, ResponseMsg) {
+
+      // ------------------ NEW CODE ------------------------------------
+      assert(is_valid(getCacheEntry(address)));
+      
+      if(in_msg.isSelfInv) {
+        assert(!selfinvfifo.isFull());
+        DPRINTF(RubySlicc,"[updateSelfInv] Starting the updating of self-inv fifo\n");
+        selfinvfifo.pushEntry(address);
+        DPRINTF(RubySlicc,"[updateSelfInv] Pushed the new entry to the self-inv fifo\n");
+      } else {
+        DPRINTF(RubySlicc,"[updateSelfInv] It was not a self-inv block\n");
+        getCacheEntry(address).isSelfInv := false;
+      }
+
+
+      // -----------------------------------------------------------------
+
+      
+      // I dont think this assert is needed
+      /*       assert(is_valid(getCacheEntry(address)));
+      Addr last_pushed_addr := selfinvfifo.lastEntry();
+      if(in_msg.isSelfInv && last_pushed_addr!=in_msg.addr) {
+        DPRINTF(RubySlicc, "[updateSelfInv] Starting Self-Inv Book Keeping for block %x\n",address);
+        //assert(!selfinvfifo.isFull());
+         if(selfinvfifo.isFull()) {
+          DPRINTF(RubySlicc, "[updateSelfInv] FIFO is full!!\n");
+          // FIFO is full, pop the head, add the new block to the self_inv_out queue
+          DPRINTF(RubySlicc, "[updateSelfInv] Printing the contents of full FIFO\n");
+          selfinvfifo.printContents();
+          Addr popped_address := selfinvfifo.popEntry();
+          // Enqueue this into the self_inv_out queue if the cache_entry is valid
+          // if not, just pop is sufficient 
+          if(is_valid(getCacheEntry(popped_address))) {
+            // the head of the queue is a valid entry and should 
+            // therefore be self invalidated
+            enqueue(self_inv_out, ResponseMsg, 1) {
+              out_msg.addr := popped_address;
+              out_msg.Type := CoherenceResponseType:SELF_INV_RESP;
+              out_msg.Destination.add(machineID);
+              out_msg.MessageSize := MessageSizeType:Response_Control;
+              out_msg.VerNo := getCacheEntry(popped_address).VerNo;
+              out_msg.isSelfInv := true;
+            }
+          }
+          // Once the head is popped, we push the address of the block 
+          // we just received into the FIFO
+          selfinvfifo.pushEntry(address);
+          DPRINTF(RubySlicc, "[updateSelfInv] Pushed the new entry into FULL FIFO\n");
+        } else if(last_pushed_addr != in_msg.addr) { 
+          // FIFO has space in it, just push the block into the FIFO
+          selfinvfifo.pushEntry(address);
+          DPRINTF(RubySlicc, "[updateSelfInv] Pushed the new entry into the FREE FIFO\n");
+        }
+      } else {
+        DPRINTF(RubySlicc, "[updateSelfInv] Was not a self inv block\n");
+      } */
+    }
+  }
+
+
   action(forward_eviction_to_cpu, "\cc", desc="sends eviction information to the processor") {
     if (send_evictions) {
       DPRINTF(RubySlicc, "Sending invalidation for %#x to the CPU\n", address);
@@ -802,6 +1009,44 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       }
     }
   }
+
+  action(doSelfInvX, "dSInvX", desc="Perform the self invalidation for the block") {
+    //peek(self_inv_in, ResponseMsg) {
+      enqueue(requestL1Network_out, RequestMsg, l1_request_latency) {
+        DPRINTF(RubySlicc, "[SelfInvX] Sending a Self Inv Dirty block (Addr: %x\n"
+        ,address);
+        out_msg.addr := address;
+        out_msg.Type := CoherenceRequestType:SELF_INV_X;
+        out_msg.Requestor := machineID;
+        out_msg.DataBlk := getCacheEntry(address).DataBlk;
+        out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
+                             l2_select_low_bit, l2_select_num_bits,intToID(0)));
+        out_msg.MessageSize := MessageSizeType:Writeback_Data;
+        out_msg.isSelfInv := getCacheEntry(address).isSelfInv;
+        out_msg.VerNo := getCacheEntry(address).VerNo;
+        out_msg.Dirty := getCacheEntry(address).Dirty;
+      }
+    //}
+  }
+
+  action(doSelfInvS, "dSInvS", desc="Perform self invalidation of Shared block") {
+    //peek(self_inv_in, ResponseMsg) {
+      enqueue(requestL1Network_out, RequestMsg, l1_request_latency) {
+        DPRINTF(RubySlicc, "[SelfInvS] Sending a Self Inv Clean block (Addr : %x)\n",
+        address);
+        out_msg.addr := address;
+        out_msg.Type := CoherenceRequestType:SELF_INV_S;
+        out_msg.Requestor := machineID;
+        out_msg.Destination.add(mapAddressToRange(address, MachineType:L2Cache,
+                            l2_select_low_bit, l2_select_num_bits,intToID(0)));
+        out_msg.MessageSize := MessageSizeType:Request_Control;
+        out_msg.isSelfInv := getCacheEntry(address).isSelfInv;
+        out_msg.VerNo := getCacheEntry(address).VerNo;
+        out_msg.Dirty := getCacheEntry(address).Dirty;
+      }
+    //}
+  }
+  
 
   action(j_sendUnblock, "j", desc="send unblock to the L2 cache") {
     enqueue(unblockNetwork_out, ResponseMsg, to_l2_latency) {
@@ -899,6 +1144,13 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     profileMsgDelay(1, ticksToCycles(delay));
   }
 
+// NEW CODE --> Not using this 
+/*   action(pI_popSelfInvQueue, "pI",
+    desc="Pop the self invalidation IN queue") {
+    self_inv_in.dequeue(clockEdge());
+    DPRINTF(RubySlicc, "Popped the self_inv_in queue\n");  
+  } */
+
   action(s_deallocateTBE, "s", desc="Deallocate TBE") {
     TBEs.deallocate(address);
     unset_tbe();
@@ -909,6 +1161,15 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
       assert(is_valid(cache_entry));
       cache_entry.DataBlk := in_msg.DataBlk;
       cache_entry.Dirty := in_msg.Dirty;
+      // Some debug logic
+      if(in_msg.isSelfInv) {
+          DPRINTF(RubySlicc, "[WData2C]Received a selfinv\n");
+          DPRINTF(RubySlicc, "[WData2C]Address associated with this action is %x\n",address);
+          DPRINTF(RubySlicc, "[WData2C]VerNo of cache_entry is %d, VerNo of in_msg is %d\n",cache_entry.VerNo, in_msg.VerNo);
+      }
+      cache_entry.isSelfInv := in_msg.isSelfInv;
+      cache_entry.VerNo := in_msg.VerNo;
+
     }
   }
 
@@ -945,6 +1206,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   action(z_stallAndWaitMandatoryQueue, "\z", desc="Stall and wait the L1 mandatory request queue") {
     stall_and_wait(mandatoryQueue_in, address);
+    APPEND_TRANSITION_COMMENT("Stall mandatory queue");
   }
 
   action(z_stallAndWaitOptionalQueue, "\pz", desc="Stall and wait the L1 prefetch request queue") {
@@ -1025,6 +1287,23 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   transition({IS, IM, IS_I, M_I, SM, SINK_WB_ACK, PF_IS, PF_IS_I, PF_IM, PF_SM}, PF_L1_Replacement) {
     z_stallAndWaitOptionalQueue;
   }
+
+  // Transition from the transient states when receiving a selfInv block
+  // NEW CODE -> In the new code, SelfInv event is triggered only in Stable states
+/*   transition({IS,IM,IS_I,SM}, SelfInv) {
+    // In this state, if there is selfInv block
+    // it is mostly due to a older version of the block
+    // and we can ignore it.
+    // SM state : it could be possible that the self-invalidation
+    // received was for the block in action. But we can ignore this
+    // It is uncessary to invalidate this block now, as it 
+    // is most likely to get a selfInv block from L2 
+    // by self inv in L2 state, we are essentially creating 
+    // unneccessary miss.
+    // Maybe I can stall and then wake up after the getting the block
+    // TODO: Think about the last line
+    pI_popSelfInvQueue;
+  } */
 
   // Transitions from Idle
   transition({NP,I}, {L1_Replacement, PF_L1_Replacement}) {
@@ -1126,6 +1405,14 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     fi_sendInvAck;
     l_popRequestQueue;
   }
+  
+  // NEW CODE -> In the new code, SelfInv is triggered only in stable states
+/*   transition({NP, I}, SelfInv) {
+    // Case when the cache block due to some reason
+    // got invalidated/replaced after it was placed in the 
+    // self inv fifo
+    pI_popSelfInvQueue;
+  } */
 
   // Transitions from Shared
   transition({S,E,M}, Load) {
@@ -1160,6 +1447,37 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     l_popRequestQueue;
   }
 
+  transition(S, SelfInv, SI) {
+    //forward_eviction_to_cpu;
+    i_allocateTBE; // Actually you dont need this 
+    doSelfInvS;
+    // NEW CODE -> Not using the self inv queue
+    //pI_popSelfInvQueue;
+  }
+
+  // The transitions from the new state SI
+  transition(SI, SelfInvAck, I) {
+    s_deallocateTBE;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents;
+  }
+
+  transition(SI, Inv, SINK_WB_ACK) {
+    fi_sendInvAck;
+    l_popRequestQueue;
+  }
+
+  transition(SI, {Load,Store, L1_Replacement, PF_L1_Replacement, Ifetch}) {
+    z_stallAndWaitMandatoryQueue;
+  }
+
+  // NEW CODE -> In the new code, will not trigger SelfInv in unstable state
+/*   transition(SI, SelfInv) {
+    // Already in the process of self-invalidating this block
+    // So we can ignore
+    pI_popSelfInvQueue;
+  } */
+
   // Transitions from Exclusive
 
   transition({E,M}, Store, M) {
@@ -1175,6 +1493,14 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     i_allocateTBE;
     g_issuePUTX;   // send data, but hold in case forwarded request
     ff_deallocateL1CacheBlock;
+  }
+
+  transition(E, SelfInv, M_I) {
+    //forward_eviction_to_cpu;
+    i_allocateTBE;
+    doSelfInvX;
+    // NEW CODE -> Not using the selfInvQue
+    //pI_popSelfInvQueue;
   }
 
   transition(E, Inv, I) {
@@ -1204,6 +1530,27 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     g_issuePUTX;   // send data, but hold in case forwarded request
     ff_deallocateL1CacheBlock;
   }
+
+  transition(M, SelfInv, M_I) {
+    //forward_eviction_to_cpu;
+    i_allocateTBE;
+    doSelfInvX;
+    // NEW CODE -> No SelfInvQueue is used
+    //pI_popSelfInvQueue;
+  }
+
+  transition(M_I, SelfInvAck, I) {
+    s_deallocateTBE;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents; //?? do i need to do this?
+  }
+  
+  // NEW CODE -> Will not trigger self invalidation in transient states
+/*   transition(M_I, SelfInv) {
+    // Already in the process of invalidating the block
+    // so can ignore this
+    pI_popSelfInvQueue;
+  } */
 
   transition(M_I, WB_Ack, I) {
     s_deallocateTBE;
@@ -1258,6 +1605,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   transition(IS, Data_all_Acks, S) {
     u_writeDataToL1Cache;
+    updateSelfInv;
     hx_load_hit;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
@@ -1274,6 +1622,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   transition(IS_I, Data_all_Acks, I) {
     u_writeDataToL1Cache;
+    updateSelfInv;
     hx_load_hit;
     s_deallocateTBE;
     o_popIncomingResponseQueue;
@@ -1288,6 +1637,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   transition(IS, DataS_fromL1, S) {
     u_writeDataToL1Cache;
+    updateSelfInv;
     j_sendUnblock;
     hx_load_hit;
     s_deallocateTBE;
@@ -1305,6 +1655,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   transition(IS_I, DataS_fromL1, I) {
     u_writeDataToL1Cache;
+    updateSelfInv;
     j_sendUnblock;
     hx_load_hit;
     s_deallocateTBE;
@@ -1322,6 +1673,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
   // directory is blocked when sending exclusive data
   transition(IS_I, Data_Exclusive, E) {
     u_writeDataToL1Cache;
+    updateSelfInv; // Performs the necessary operation for self invalidation if one.
     hx_load_hit;
     jj_sendExclusiveUnblock;
     s_deallocateTBE;
@@ -1340,6 +1692,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   transition(IS, Data_Exclusive, E) {
     u_writeDataToL1Cache;
+    updateSelfInv;
     hx_load_hit;
     jj_sendExclusiveUnblock;
     s_deallocateTBE;
@@ -1369,6 +1722,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   transition(IM, Data, SM) {
     u_writeDataToL1Cache;
+    updateSelfInv;//TODO Check
     q_updateAckCount;
     o_popIncomingResponseQueue;
   }
@@ -1381,6 +1735,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
 
   transition(IM, Data_all_Acks, M) {
     u_writeDataToL1Cache;
+    updateSelfInv;
     hhx_store_hit;
     jj_sendExclusiveUnblock;
     s_deallocateTBE;
@@ -1435,4 +1790,17 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     o_popIncomingResponseQueue;
     kd_wakeUpDependents;
   }
+
+  transition(SINK_WB_ACK, SelfInvAck, I) {
+    s_deallocateTBE;
+    o_popIncomingResponseQueue;
+    kd_wakeUpDependents;
+  }
+
+  // NEW CODE -> Only call SelfInv in the stable states
+/*   transition(SINK_WB_ACK, SelfInv) {
+    pI_popSelfInvQueue;
+  } */
+
+
 }
